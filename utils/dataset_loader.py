@@ -22,7 +22,7 @@ class PolarizationDataset(Dataset):
     def __getitem__(self,idx):
         text=self.texts[idx]
         label=self.labels[idx]
-        encoding=self.tokenizer(text,truncation=True,padding=False,max_length=self.max_length,return_tensors='pt')
+        encoding=self.tokenizer(text, truncation=True, padding=False, max_length=self.max_length, return_tensors='pt')
 
         # Ensure consistent tensor conversion for all items
         item = {key: encoding[key].squeeze() for key in encoding.keys()}

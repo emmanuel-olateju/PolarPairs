@@ -1,19 +1,15 @@
-import argparse
-
-import numpy as np
-import torch as torch
-
-import wandb
-wandb.init(mode="disabled")
-
-from transformers.training_args import TrainingArguments
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer
-from transformers import DataCollatorWithPadding
-
 from utils.dataset_loader import load_and_split_bilingual_data, PolarizationDataset
 from utils.metrics import subtask1_codabench_compute_metrics
 
 from utils.experiment_tracker import Experiment, Parameter
+
+import argparse
+
+import numpy as np
+import torch as torch
+from transformers.training_args import TrainingArguments
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer
+from transformers import DataCollatorWithPadding
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PolarPairs Training')
@@ -73,12 +69,17 @@ def main():
                 gradient_accumulation_steps = 8,
                 eval_strategy = 'epoch',
                 save_strategy = 'no',
-                logging_steps = 50,
+                logging_steps = 10,
+                learning_rate = args.lr,
+                max_grad_norm = 1.0,
+                lr_scheduler_type = 'linear',
+                warmup_ratio = 0.1,
                 fp16 = False,
-                dataloader_num_workers = 0,
-                load_best_model_at_end = False,
-                eval_accumulation_steps = 1,
-                gradient_checkpointing = False,
+                weight_decay = 0.1,
+                # dataloader_num_workers = 0,
+                # load_best_model_at_end = False,
+                # eval_accumulation_steps = 1,
+                # gradient_checkpointing = False,
                 # metric_for_best_model="eval_loss"
             )
 
@@ -94,8 +95,8 @@ def main():
             )
 
             # Create datasets
-            train_dataset = PolarizationDataset(train['source_text'].tolist(), train['polarization'].tolist(), tokenizer)
-            val_dataset = PolarizationDataset(val['source_text'].tolist(), val['polarization'].tolist(), tokenizer)
+            train_dataset = PolarizationDataset(train['source_text'].tolist(), train['polarization'].tolist(), tokenizer, n_classes=2)
+            val_dataset = PolarizationDataset(val['source_text'].tolist(), val['polarization'].tolist(), tokenizer, n_classes=2)
 
             # Load the model
             model = AutoModelForSequenceClassification.from_pretrained(
