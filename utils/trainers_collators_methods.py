@@ -17,6 +17,29 @@ class CustomDataCollator(DataCollatorWithPadding):
             batch['labels'] = batch['labels'].long()
         return batch
 
+@dataclass
+class PolarPairsCollator:
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
+        batch = {}
+
+        batch['x_input_ids'] = torch.stack([f['x_input_ids'] for f in features])
+        batch['x_attention_mask'] = torch.stack([f['x_attention_mask'] for f in features])
+        batch['x_hat_input_ids'] = torch.stack([f['x_hat_input_ids'] for f in features])
+        batch['x_hat_attention_mask'] = torch.stack([f['x_hat_attention_mask'] for f in features])
+
+        polar_labels = []
+        for f in features:
+            label = f['polar_labels']
+            if isinstance(label, torch.Tensor):
+                polar_labels.append(label.item() if label.dim() == 0 else label[0].item())
+            else:
+                polar_labels.append(int(label))
+
+        batch['polar_labels'] = torch.tensor(polar_labels, dtype=torch.long)
+        batch['hat_labels'] = torch.stack([f['hat_labels'] for f in features])
+
+        return batch
+
 class MultiLingualPolarPairsAlignment(nn.Module):
 
     def __init__(self, encoder_model_name, pretrained_encoder_name, num_labels, alignment_normalization=True, alignment_residual=True):
@@ -165,26 +188,3 @@ class PolarPairsTrainer(Trainer):
             return (loss.detach(), None, None)
 
         return (loss.detach(), logits.detach().cpu(), labels)
-
-@dataclass
-class PolarPairsCollator:
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
-        batch = {}
-
-        batch['x_input_ids'] = torch.stack([f['x_input_ids'] for f in features])
-        batch['x_attention_mask'] = torch.stack([f['x_attention_mask'] for f in features])
-        batch['x_hat_input_ids'] = torch.stack([f['x_hat_input_ids'] for f in features])
-        batch['x_hat_attention_mask'] = torch.stack([f['x_hat_attention_mask'] for f in features])
-
-        polar_labels = []
-        for f in features:
-            label = f['polar_labels']
-            if isinstance(label, torch.Tensor):
-                polar_labels.append(label.item() if label.dim() == 0 else label[0].item())
-            else:
-                polar_labels.append(int(label))
-
-        batch['polar_labels'] = torch.tensor(polar_labels, dtype=torch.long)
-        batch['hat_labels'] = torch.stack([f['hat_labels'] for f in features])
-
-        return batch
