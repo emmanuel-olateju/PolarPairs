@@ -1,16 +1,21 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-import numpy as np
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import Dataset
 
-from transformers import AutoModel, AutoTokenizer, Trainer
+from transformers import AutoModel, Trainer
+from transformers import DataCollatorWithPadding
 
 from  losses import polar_pairs_contrastive_loss
+
+class CustomDataCollator(DataCollatorWithPadding):
+    def __call__(self, features):
+        batch = super().__call__(features)
+        # Convert labels to long (int64)
+        if 'labels' in batch:
+            batch['labels'] = batch['labels'].long()
+        return batch
 
 class MultiLingualPolarPairsAlignment(nn.Module):
 
