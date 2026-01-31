@@ -1,0 +1,95 @@
+baseline: v1.0.0, v1.1.0
+description: 'Non-Matching Encoder Pairs: performance of deberta-small as anchor,
+  and distilled-BERT as fine-tuned model compared across languages'
+name: v1.2.0.3
+parameters:
+  AnchorModel: olateju/PolarPairs-v1.0.0_eng
+  Hyperparameter:
+    alignment_lr: 0.005
+    alignment_normalization: false
+    alignment_resnet: false
+    encoder_lr: 0.005
+    epochs: 3
+    eval_batch_size: 8
+    eval_strategy: epoch
+    lambda: 0.1
+    learning_rate: 0.0001
+    max_length: 128
+    subset_size: 2
+    tau: 0.07
+    train_batch_size: 8
+  Performance:
+    amh+eng_multilingual+FT_results:
+      src_lang: eng
+      src_performance:
+        eval_f1_macro: 0.38849876636933006
+        eval_f1_weighted: 0.49364182169957704
+        eval_loss: 0.7068674564361572
+        eval_model_preparation_time: 0.0027
+        eval_runtime: 17.5431
+        eval_samples_per_second: 183.662
+        eval_steps_per_second: 22.972
+      tgt_lang: eng
+    amh_multilingual+FT_results:
+      src_lang: amh
+      src_performance:
+        epoch: 3.0
+        eval_f1_macro: 0.5785021200260926
+        eval_f1_weighted: 0.6524854011350489
+        eval_loss: 0.6722448468208313
+        eval_runtime: 3.778
+        eval_samples_per_second: 176.548
+        eval_steps_per_second: 22.234
+      tgt_lang: eng
+    hau+eng_multilingual+FT_results:
+      src_lang: eng
+      src_performance:
+        eval_f1_macro: 0.4916995699076359
+        eval_f1_weighted: 0.5404582559715466
+        eval_loss: 0.8392392992973328
+        eval_model_preparation_time: 0.0027
+        eval_runtime: 17.5261
+        eval_samples_per_second: 183.84
+        eval_steps_per_second: 22.994
+      tgt_lang: eng
+    hau_multilingual+FT_results:
+      src_lang: hau
+      src_performance:
+        epoch: 3.0
+        eval_f1_macro: 0.8493049829190717
+        eval_f1_weighted: 0.9425444596443229
+        eval_loss: 0.3428152799606323
+        eval_runtime: 4.0661
+        eval_samples_per_second: 179.78
+        eval_steps_per_second: 22.626
+      tgt_lang: eng
+    swa+eng_multilingual+FT_results:
+      src_lang: eng
+      src_performance:
+        eval_f1_macro: 0.6061624172374726
+        eval_f1_weighted: 0.6350093109869647
+        eval_loss: 0.699507474899292
+        eval_model_preparation_time: 0.0028
+        eval_runtime: 17.5946
+        eval_samples_per_second: 183.124
+        eval_steps_per_second: 22.905
+      tgt_lang: eng
+    swa_multilingual+FT_results:
+      src_lang: swa
+      src_performance:
+        epoch: 3.0
+        eval_f1_macro: 0.7668762395469138
+        eval_f1_weighted: 0.7668658769080434
+        eval_loss: 0.5238463282585144
+        eval_runtime: 7.6159
+        eval_samples_per_second: 183.696
+        eval_steps_per_second: 22.978
+      tgt_lang: eng
+  Preprocessing:
+    tokenizer: distilbert-base-multilingual-cased
+  language:
+  - amh
+  - eng
+  - hau
+  - swa
+  model_name: distilbert-base-multilingual-cased

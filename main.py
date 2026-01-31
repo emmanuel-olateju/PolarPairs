@@ -66,12 +66,12 @@ def main():
                 eval_strategy = 'epoch',
                 save_strategy = 'no',
                 logging_steps = 50,
-                learning_rate = training_params['lr'],
-                max_grad_norm = 1.0,
-                lr_scheduler_type = 'cosine',
-                warmup_ratio = 0.1,
-                fp16 = False,
-                weight_decay = 0.1,
+                # learning_rate = training_params['lr'],
+                # max_grad_norm = 1.0,
+                # lr_scheduler_type = 'cosine',
+                # warmup_ratio = 0.1,
+                fp16 = True,
+                # weight_decay = 0.1,
                 dataloader_num_workers = 0,
                 load_best_model_at_end = False,
                 eval_accumulation_steps = 1,
@@ -101,15 +101,15 @@ def main():
                 ignore_mismatched_sizes = True
             )
 
-            # Freeze all layers
-            for param in model.base_model.parameters():
-                param.requires_grad = False
+            # # Freeze all layers
+            # for param in model.base_model.parameters():
+            #     param.requires_grad = False
 
-            # Unfreeze last 2 encoder layers (for BERT-like models)
-            num_layers = model.config.num_hidden_layers
-            for i in range(num_layers - 4, num_layers):
-                for param in model.base_model.encoder.layer[i].parameters():
-                    param.requires_grad = True
+            # # Unfreeze last 2 encoder layers (for BERT-like models)
+            # num_layers = model.config.num_hidden_layers
+            # for i in range(num_layers - 4, num_layers):
+            #     for param in model.base_model.encoder.layer[i].parameters():
+            #         param.requires_grad = True
 
             # Initialize the Trainer
             trainer = Trainer(
@@ -128,9 +128,9 @@ def main():
             eval_results = trainer.evaluate()
             print(f"Macro F1 score on {language} validation set: {eval_results['eval_f1_macro']}")
 
-            if args.save_models:
-                model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
-                tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
+            # if args.save_models:
+            #     model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
+            #     tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
 
             # ===== SAVE THE FINE-TUNED MODEL =====
             # save_path = f'finetuned_models/{language}_{tokenizer_param.get_value()}'

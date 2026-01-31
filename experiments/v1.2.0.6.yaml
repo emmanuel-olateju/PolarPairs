@@ -1,0 +1,95 @@
+baseline: v1.0.0, v1.1.0
+description: 'Non-Matching Encoder Pairs: performance of deberta-small as anchor,
+  and LaBSE as fine-tuned model compared across languages'
+name: v1.2.0.6
+parameters:
+  AnchorModel: olateju/PolarPairs-v1.0.0_eng
+  Hyperparameter:
+    alignment_lr: 0.005
+    alignment_normalization: false
+    alignment_resnet: false
+    encoder_lr: 0.005
+    epochs: 3
+    eval_batch_size: 8
+    eval_strategy: epoch
+    lambda: 0.1
+    learning_rate: 0.0001
+    max_length: 128
+    subset_size: 2
+    tau: 0.07
+    train_batch_size: 8
+  Performance:
+    amh+eng_multilingual+FT_results:
+      src_lang: eng
+      src_performance:
+        eval_f1_macro: 0.5852046358947226
+        eval_f1_weighted: 0.6429373287655824
+        eval_loss: 0.6074283719062805
+        eval_model_preparation_time: 0.004
+        eval_runtime: 21.1769
+        eval_samples_per_second: 152.147
+        eval_steps_per_second: 19.03
+      tgt_lang: eng
+    amh_multilingual+FT_results:
+      src_lang: amh
+      src_performance:
+        epoch: 3.0
+        eval_f1_macro: 0.6899116689911668
+        eval_f1_weighted: 0.7586004766096728
+        eval_loss: 0.5532454252243042
+        eval_runtime: 4.5922
+        eval_samples_per_second: 145.246
+        eval_steps_per_second: 18.292
+      tgt_lang: eng
+    hau+eng_multilingual+FT_results:
+      src_lang: eng
+      src_performance:
+        eval_f1_macro: 0.46434484646451585
+        eval_f1_weighted: 0.4855368299820524
+        eval_loss: 0.8361084461212158
+        eval_model_preparation_time: 0.0041
+        eval_runtime: 21.463
+        eval_samples_per_second: 150.119
+        eval_steps_per_second: 18.776
+      tgt_lang: eng
+    hau_multilingual+FT_results:
+      src_lang: hau
+      src_performance:
+        epoch: 3.0
+        eval_f1_macro: 0.8238648532876419
+        eval_f1_weighted: 0.9294333437150879
+        eval_loss: 0.3518790006637573
+        eval_runtime: 4.7141
+        eval_samples_per_second: 155.066
+        eval_steps_per_second: 19.516
+      tgt_lang: eng
+    swa+eng_multilingual+FT_results:
+      src_lang: eng
+      src_performance:
+        eval_f1_macro: 0.5824412799950235
+        eval_f1_weighted: 0.6307028453745864
+        eval_loss: 0.7194846272468567
+        eval_model_preparation_time: 0.0041
+        eval_runtime: 20.8213
+        eval_samples_per_second: 154.745
+        eval_steps_per_second: 19.355
+      tgt_lang: eng
+    swa_multilingual+FT_results:
+      src_lang: swa
+      src_performance:
+        epoch: 3.0
+        eval_f1_macro: 0.7748373301450808
+        eval_f1_weighted: 0.7748387106635041
+        eval_loss: 0.5212734937667847
+        eval_runtime: 8.9205
+        eval_samples_per_second: 156.829
+        eval_steps_per_second: 19.618
+      tgt_lang: eng
+  Preprocessing:
+    tokenizer: sentence-transformers/LaBSE
+  language:
+  - amh
+  - eng
+  - hau
+  - swa
+  model_name: sentence-transformers/LaBSE

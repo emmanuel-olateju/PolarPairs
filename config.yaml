@@ -20,6 +20,6 @@ models:
   anchor_model: None
 
 training:
-  lr: !!float 3e-6
+  lr: !!float 1e-4
   batch_size: 8
-  n_epochs: 20
+  n_epochs: 5
