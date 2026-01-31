@@ -1,0 +1,46 @@
+author: Emmanuel Olateju
+baseline: v1.0
+date: 31-01-2026
+description: 'Train different model instance for each language using train-val-test
+  split of 70-10-20. Goal is to identify what model consistently performs best across
+  languages and subtasks '
+messages:
+- Start with mDeBERTa-small
+name: Language Decoupled (Independent / Mono-Lingual) Performance
+parameters:
+  Performance:
+    amh_eval_results:
+      epoch: 20.0
+      eval_f1_macro: 0.430401366353544
+      eval_loss: 0.556168258190155
+      eval_runtime: 1.5265
+      eval_samples_per_second: 436.943
+      eval_steps_per_second: 55.027
+    eng_eval_results:
+      epoch: 20.0
+      eval_f1_macro: 0.3886255924170616
+      eval_loss: 0.6559216380119324
+      eval_runtime: 1.386
+      eval_samples_per_second: 465.37
+      eval_steps_per_second: 58.442
+    hau_eval_results:
+      epoch: 20.0
+      eval_f1_macro: 0.4718208092485549
+      eval_loss: 0.3399917185306549
+      eval_runtime: 1.5571
+      eval_samples_per_second: 469.468
+      eval_steps_per_second: 59.085
+    swa_eval_results:
+      epoch: 20.0
+      eval_f1_macro: 0.3328564616118264
+      eval_loss: 0.6931565999984741
+      eval_runtime: 3.0649
+      eval_samples_per_second: 456.451
+      eval_steps_per_second: 57.097
+  Training:
+    anchor_model: None
+    batch_size: 8
+    lr: 3.0e-06
+    n_epochs: 20
+    slave_model: microsoft/deberta-v3-small
+version: v1.0

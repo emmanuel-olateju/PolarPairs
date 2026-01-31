@@ -1,0 +1,25 @@
+experiment:
+  name: "Language Decoupled (Independent / Mono-Lingual) Performance"
+  version: "v1.0"
+  dir: "./experiments/v1.0"
+  baseline: "v1.0"
+  description: "Train different model instance for each language using train-val-test split of 70-10-20. Goal is to identify what model consistently performs best across languages and subtasks "
+  author: Emmanuel Olateju
+  date: 31-01-2026
+  messages:
+    - "Start with mDeBERTa-small"
+
+languages:
+  - "swa"
+  - "hau"
+  - "eng"
+  - "amh"
+
+models:
+  slave_model: "microsoft/deberta-v3-small"
+  anchor_model: None
+
+training:
+  lr: !!float 3e-6
+  batch_size: 8
+  n_epochs: 20

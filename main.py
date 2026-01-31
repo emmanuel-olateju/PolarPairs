@@ -3,6 +3,7 @@ from utils.metrics import subtask1_codabench_compute_metrics
 
 from utils.experiment_tracker import Experiment, Parameter
 
+import yaml
 import argparse
 
 import numpy as np
@@ -23,18 +24,6 @@ def parse_args():
     parser.add_argument('--language', type=str, default='eng', 
         choices=['eng', 'amh', 'swa', 'hau', 'all']
     )
-    
-    parser.add_argument('--lr', type=float, default=2E-6)
-    parser.add_argument('--batch_size', type=int, default=8)
-    parser.add_argument('--n_epochs', type=int, default=3)
-
-    parser.add_argument('--experiment_version', type=str, default='v0.0')
-    parser.add_argument('--experiment_baseline', type=str, default='None')
-    parser.add_argument('--experiment_description', type=str, default='Baseline')
-    parser.add_argument('--experiment_dir', type=str, default='./experiments/')
-
-    parser.add_argument('--teacher_model', type=str, default='microsoft/deberta-v3-small')
-    parser.add_argument('--student_model', type=str, default='microsoft/deberta-v3-small')
 
     parser.add_argument('--save_models', help='Save models to huggingFace repository', action='store_true')
 
@@ -44,51 +33,58 @@ def parse_args():
 def main():
     np.random.seed(42)
     torch.manual_seed(42)
+    
+    with open('./config.yaml', 'r') as f:
+        configs = yaml.safe_load(f)
+    
+    training_params = configs['training']
+    languages = configs['languages']
+    # experiment_params = configs['experiment']
+    experiment = Experiment(**configs['experiment'])
+    print(f"Experiment Directory: {experiment.dir}")
 
     args = parse_args()
-    experiment = Experiment(
-        args.experiment_version,
-        args.experiment_dir,
-        args.experiment_description,
-        args.experiment_baseline
-    )
+    experiment.dict_2_params(training_params, 'Training')
+    experiment.dict_2_params(configs['models'], 'Training')
 
     if args.task == 'subtask-1':
         if args.language == 'all':
-            languages = ['eng', 'amh', 'swa', 'hau']
+            languages = languages
         else:
             languages = [args.language]
 
         if args.mode == 'mono-lingual':
 
+            model_name = configs['models']['slave_model']
+
             training_args = TrainingArguments(
                 output_dir = './results',
-                num_train_epochs = args.n_epochs,
-                per_device_train_batch_size = args.batch_size,  # mT5-small can handle 2-4
-                per_device_eval_batch_size = args.batch_size,
+                num_train_epochs = training_params['n_epochs'],
+                per_device_train_batch_size = training_params['batch_size'],  # mT5-small can handle 2-4
+                per_device_eval_batch_size = training_params['batch_size'],
                 gradient_accumulation_steps = 8,
                 eval_strategy = 'epoch',
                 save_strategy = 'no',
-                logging_steps = 10,
-                learning_rate = args.lr,
+                logging_steps = 50,
+                learning_rate = training_params['lr'],
                 max_grad_norm = 1.0,
-                lr_scheduler_type = 'linear',
+                lr_scheduler_type = 'cosine',
                 warmup_ratio = 0.1,
                 fp16 = False,
                 weight_decay = 0.1,
-                # dataloader_num_workers = 0,
-                # load_best_model_at_end = False,
-                # eval_accumulation_steps = 1,
-                # gradient_checkpointing = False,
+                dataloader_num_workers = 0,
+                load_best_model_at_end = False,
+                eval_accumulation_steps = 1,
+                gradient_checkpointing = False,
                 # metric_for_best_model="eval_loss"
             )
 
         for language in languages:
 
             # Load the tokenizer
-            tokenizer = AutoTokenizer.from_pretrained(args.student_model, use_fast=True)
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-            train, val = load_and_split_bilingual_data(
+            train, val = load_and_split_bilingual_data( # Need to update this to make source language = all other languages asides target language 
                 subtask = 'subtask1',
                 source_lang = language,
                 target_lang = 'eng'
@@ -100,10 +96,20 @@ def main():
 
             # Load the model
             model = AutoModelForSequenceClassification.from_pretrained(
-                args.student_model,
+                model_name,
                 num_labels = 2,
                 ignore_mismatched_sizes = True
             )
+
+            # Freeze all layers
+            for param in model.base_model.parameters():
+                param.requires_grad = False
+
+            # Unfreeze last 2 encoder layers (for BERT-like models)
+            num_layers = model.config.num_hidden_layers
+            for i in range(num_layers - 4, num_layers):
+                for param in model.base_model.encoder.layer[i].parameters():
+                    param.requires_grad = True
 
             # Initialize the Trainer
             trainer = Trainer(
@@ -123,8 +129,8 @@ def main():
             print(f"Macro F1 score on {language} validation set: {eval_results['eval_f1_macro']}")
 
             if args.save_models:
-                model.push_to_hub(f"olateju/PolarPairs-{args.experiment_version}_{language}")
-                tokenizer.push_to_hub(f"olateju/PolarPairs-{args.experiment_version}_{language}")
+                model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
+                tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
 
             # ===== SAVE THE FINE-TUNED MODEL =====
             # save_path = f'finetuned_models/{language}_{tokenizer_param.get_value()}'
@@ -135,8 +141,8 @@ def main():
 
             eval_results_param = Parameter(eval_results, f"{language}_eval_results", "Performance")
             experiment.add_params([eval_results_param])
-
-
+        
+        experiment.save()
 
 
 if __name__ == '__main__':
