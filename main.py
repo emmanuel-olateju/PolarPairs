@@ -1,5 +1,5 @@
 from utils.dataset_loader import load_and_split_bilingual_data, PolarizationDataset
-from utils.metrics import subtask1_codabench_compute_metrics
+from utils.metrics import subtask1_codabench_compute_metrics, subtask2_codabench_compute_metrics_multilabel, compute_metrics
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -12,6 +12,12 @@ from transformers.training_args import TrainingArguments
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer
 from transformers import DataCollatorWithPadding
 
+TASKS_METRIC = {
+    'subtask1': subtask1_codabench_compute_metrics,
+    'subtask2': subtask2_codabench_compute_metrics_multilabel,
+    'subtask3': compute_metrics
+}
+
 def parse_args():
     parser = argparse.ArgumentParser(description='PolarPairs Training')
 
@@ -20,7 +26,7 @@ def parse_args():
         )
     
     parser.add_argument('--task', type=str, default='subtask-1',
-                        choices=['subtask-1', 'subtask-2', 'subtask-3', 'combined'])
+                        choices=['subtask1', 'subtask2', 'subtask3'])
     parser.add_argument('--language', type=str, default='eng', 
         choices=['eng', 'amh', 'swa', 'hau', 'all']
     )
@@ -39,6 +45,7 @@ def main():
     
     training_params = configs['training']
     languages = configs['languages']
+    n_labels = configs['n_labels']
     # experiment_params = configs['experiment']
     experiment = Experiment(**configs['experiment'])
     print(f"Experiment Directory: {experiment.dir}")
@@ -47,60 +54,44 @@ def main():
     experiment.dict_2_params(training_params, 'Training')
     experiment.dict_2_params(configs['models'], 'Training')
 
-    if args.task == 'subtask-1':
-        if args.language == 'all':
-            languages = languages
-        else:
-            languages = [args.language]
+    if args.language == 'all':
+        languages = languages
+    else:
+        languages = [args.language]
 
+    training_args = TrainingArguments(
+        output_dir = './results',
+        num_train_epochs = training_params['n_epochs'],
+        per_device_train_batch_size = training_params['batch_size'],  # mT5-small can handle 2-4
+        per_device_eval_batch_size = training_params['batch_size'],
+        gradient_accumulation_steps = 8,
+        eval_strategy = 'epoch',
+        save_strategy = 'no',
+        logging_steps = 50,
+        # learning_rate = training_params['lr'],
+        # max_grad_norm = 1.0,
+        # lr_scheduler_type = 'cosine',
+        # warmup_ratio = 0.1,
+        fp16 = True,
+        # weight_decay = 0.1,
+        dataloader_num_workers = 0,
+        load_best_model_at_end = False,
+        eval_accumulation_steps = 1,
+        gradient_checkpointing = False,
+        # metric_for_best_model="eval_loss"
+    )
+
+    for language in languages:
         if args.mode == 'mono-lingual':
 
+            # Load the tokenizer and model
             model_name = configs['models']['slave_model']
-
-            training_args = TrainingArguments(
-                output_dir = './results',
-                num_train_epochs = training_params['n_epochs'],
-                per_device_train_batch_size = training_params['batch_size'],  # mT5-small can handle 2-4
-                per_device_eval_batch_size = training_params['batch_size'],
-                gradient_accumulation_steps = 8,
-                eval_strategy = 'epoch',
-                save_strategy = 'no',
-                logging_steps = 50,
-                # learning_rate = training_params['lr'],
-                # max_grad_norm = 1.0,
-                # lr_scheduler_type = 'cosine',
-                # warmup_ratio = 0.1,
-                fp16 = True,
-                # weight_decay = 0.1,
-                dataloader_num_workers = 0,
-                load_best_model_at_end = False,
-                eval_accumulation_steps = 1,
-                gradient_checkpointing = False,
-                # metric_for_best_model="eval_loss"
-            )
-
-        for language in languages:
-
-            # Load the tokenizer
             tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-            train, val = load_and_split_bilingual_data( # Need to update this to make source language = all other languages asides target language 
-                subtask = 'subtask1',
-                source_lang = language,
-                target_lang = 'eng'
-            )
-
-            # Create datasets
-            train_dataset = PolarizationDataset(train['source_text'].tolist(), train['polarization'].tolist(), tokenizer, n_classes=2)
-            val_dataset = PolarizationDataset(val['source_text'].tolist(), val['polarization'].tolist(), tokenizer, n_classes=2)
-
-            # Load the model
             model = AutoModelForSequenceClassification.from_pretrained(
                 model_name,
-                num_labels = 2,
+                num_labels = n_labels[args.task],
                 ignore_mismatched_sizes = True
             )
-
             # # Freeze all layers
             # for param in model.base_model.parameters():
             #     param.requires_grad = False
@@ -111,38 +102,40 @@ def main():
             #     for param in model.base_model.encoder.layer[i].parameters():
             #         param.requires_grad = True
 
-            # Initialize the Trainer
+            # Create datasets
+            train, val = load_and_split_bilingual_data( # Need to update this to make source language = all other languages asides target language 
+                subtask = args.task,
+                source_lang = language,
+                target_lang = 'eng'
+            )
+            train_dataset = PolarizationDataset(train['source_text'].tolist(), train['polarization'].tolist(), tokenizer, n_classes=n_labels[args.task])
+            val_dataset = PolarizationDataset(val['source_text'].tolist(), val['polarization'].tolist(), tokenizer, n_classes=n_labels[args.task])
+
+            # Initialize the Trainer & Train the model
             trainer = Trainer(
                 model=model,                         # the instantiated 🤗 Transformers model to be trained
                 args=training_args,                  # training arguments, defined above
                 train_dataset=train_dataset,         # training dataset
                 eval_dataset=val_dataset,            # evaluation dataset
-                compute_metrics=subtask1_codabench_compute_metrics,     # the callback that computes metrics of interest
+                compute_metrics=TASKS_METRIC[args.task],     # the callback that computes metrics of interest
                 data_collator=DataCollatorWithPadding(tokenizer), # Data collator for dynamic padding
                 # callbacks=[EarlyStoppingCallback(early_stopping_patience=1)]
             )
-
-            # Train the model
             trainer.train()
 
+            # Evaluate Model
             eval_results = trainer.evaluate()
             print(f"Macro F1 score on {language} validation set: {eval_results['eval_f1_macro']}")
 
+            # Save modelto hugging-face and  experiment details to experiment-tracker
             # if args.save_models:
             #     model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
             #     tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
 
-            # ===== SAVE THE FINE-TUNED MODEL =====
-            # save_path = f'finetuned_models/{language}_{tokenizer_param.get_value()}'
-            # model.save_pretrained(save_path)
-            # tokenizer.save_pretrained(save_path)
-            # print(f"Saved {language} model to {save_path}")
-            # ====================================
-
             eval_results_param = Parameter(eval_results, f"{language}_eval_results", "Performance")
             experiment.add_params([eval_results_param])
         
-        experiment.save()
+    experiment.save()
 
 
 if __name__ == '__main__':

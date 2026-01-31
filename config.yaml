@@ -1,13 +1,16 @@
 experiment:
   name: "Language Decoupled (Independent / Mono-Lingual) Performance"
-  version: "v1.0"
-  dir: "./experiments/v1.0"
+  version: "v1.0.1"
+  dir: "./experiments/v1.0/v1.0.1"
   baseline: "v1.0"
   description: "Train different model instance for each language using train-val-test split of 70-10-20. Goal is to identify what model consistently performs best across languages and subtasks "
   author: Emmanuel Olateju
   date: 31-01-2026
   messages:
-    - "Start with mDeBERTa-small"
+    - "Switched to distilbert-base-multilingual-cased"
+    - "This model from the first PolarPairs manuscript has similar performance to mDeBERTa-small
+      on mono-lingual trainig, while other distilled/smaller models lag behind on Hausa
+      or English"
 
 languages:
   - "swa"
@@ -16,10 +19,15 @@ languages:
   - "amh"
 
 models:
-  slave_model: "microsoft/deberta-v3-small"
+  slave_model: "distilbert-base-multilingual-cased"
   anchor_model: None
 
 training:
   lr: !!float 1e-4
   batch_size: 8
   n_epochs: 5
+
+n_labels:
+  subtask1: 2
+  subtask2: 5
+  subtask3: 7
