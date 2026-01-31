@@ -1,0 +1,49 @@
+author: Emmanuel Olateju
+baseline: v1.0
+date: 31-01-2026
+description: 'Train different model instance for each language using train-val-test
+  split of 70-10-20. Goal is to identify what model consistently performs best across
+  languages and subtasks '
+messages:
+- Switched to distilbert-base-multilingual-cased
+- This model from the first PolarPairs manuscript has similar performance to mDeBERTa-small
+  on mono-lingual trainig, while other distilled/smaller models lag behind on Hausa
+  or English
+name: Language Decoupled (Independent / Mono-Lingual) Performance
+parameters:
+  Performance:
+    amh_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.47190743284493286
+      eval_loss: 0.5371586680412292
+      eval_runtime: 1.0168
+      eval_samples_per_second: 655.987
+      eval_steps_per_second: 82.613
+    eng_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.7195771123176111
+      eval_loss: 0.6702565550804138
+      eval_runtime: 0.7786
+      eval_samples_per_second: 828.394
+      eval_steps_per_second: 104.031
+    hau_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.8312421816698075
+      eval_loss: 0.20481440424919128
+      eval_runtime: 0.9587
+      eval_samples_per_second: 762.512
+      eval_steps_per_second: 95.966
+    swa_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.7683320249251755
+      eval_loss: 0.6728613972663879
+      eval_runtime: 1.7984
+      eval_samples_per_second: 777.924
+      eval_steps_per_second: 97.31
+  Training:
+    anchor_model: None
+    batch_size: 8
+    lr: 0.0001
+    n_epochs: 5
+    slave_model: distilbert-base-multilingual-cased
+version: v1.0.1
