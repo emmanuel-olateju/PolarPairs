@@ -1,21 +1,35 @@
-from utils.dataset_loader import load_and_split_bilingual_data, PolarizationDataset
-from utils.metrics import subtask1_codabench_compute_metrics, subtask2_codabench_compute_metrics_multilabel, compute_metrics
+from utils.dataset_loader import (
+    load_and_split_bilingual_data, 
+    load_multilingual_data, 
+    load_multilingual_data_strict, 
+    PolarizationDataset)
+from utils.metrics import (
+    subtask1_codabench_compute_metrics, 
+    subtask2_codabench_compute_metrics_multilabel, 
+    compute_metrics)
+from utils.trainers_collators_methods import (
+    TN_PolarPairsCollator, TN_PolarPairs, TN_PolarPairsTrainer)
 
 from utils.experiment_tracker import Experiment, Parameter
 
 import yaml
 import argparse
 
-import numpy as np
-import torch as torch
-from transformers.training_args import TrainingArguments
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer
-from transformers import DataCollatorWithPadding
+import numpy as np # type: ignore
+import torch as torch # type: ignore
+from transformers.training_args import TrainingArguments # type: ignore
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer # type: ignore
+from transformers import DataCollatorWithPadding # type: ignore
 
 TASKS_METRIC = {
     'subtask1': subtask1_codabench_compute_metrics,
     'subtask2': subtask2_codabench_compute_metrics_multilabel,
     'subtask3': compute_metrics
+}
+TASKS_LABELS_NAMES = {
+    'subtask1': 'polarization',
+    'subtask2': ['gender/sexual','political','religious','racial/ethnic','other'],
+    'subtask3': ['vilification','extreme_language','stereotype','invalidation','lack_of_empathy','dehumanization']
 }
 
 def parse_args():
@@ -68,7 +82,7 @@ def main():
         eval_strategy = 'epoch',
         save_strategy = 'no',
         logging_steps = 50,
-        # learning_rate = training_params['lr'],
+        learning_rate = training_params['lr'],
         # max_grad_norm = 1.0,
         # lr_scheduler_type = 'cosine',
         # warmup_ratio = 0.1,
@@ -78,7 +92,8 @@ def main():
         load_best_model_at_end = False,
         eval_accumulation_steps = 1,
         gradient_checkpointing = False,
-        # metric_for_best_model="eval_loss"
+        # metric_for_best_model="eval_loss",
+        disable_tqdm=False
     )
 
     for language in languages:
@@ -126,6 +141,97 @@ def main():
             # Evaluate Model
             eval_results = trainer.evaluate()
             print(f"Macro F1 score on {language} validation set: {eval_results['eval_f1_macro']}")
+
+            # Save modelto hugging-face and  experiment details to experiment-tracker
+            # if args.save_models:
+            #     model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
+            #     tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
+
+            eval_results_param = Parameter(eval_results, f"{language}_eval_results", "Performance")
+            experiment.add_params([eval_results_param])
+
+        elif args.mode == 'cross-lingual':
+
+            # Load the tokenizer and model
+            student_model_name = configs['models']['slave_model']
+            student_tokenizer = AutoTokenizer.from_pretrained(student_model_name)
+            student_model = AutoModelForSequenceClassification.from_pretrained(
+                student_model_name,
+                num_labels = n_labels[args.task],
+                ignore_mismatched_sizes = True
+            )
+
+            # # Freeze n-layers of student model
+            # for param in student_model.base_model.parameters():
+            #     param.requires_grad = False
+            # freeze_n_layers = configs['models']['freeze_slave_n_layers']
+            # if freeze_n_layers > 0:
+            #     num_layers = student_model.config.num_hidden_layers
+            #     for i in range(num_layers - freeze_n_layers, num_layers):
+            #         for param in student_model.base_model.encoder.layer[i].parameters():
+            #             param.requires_grad = True
+
+            teacher_model_name = configs['models']['anchor_model']
+            teacher_tokenizer = AutoTokenizer.from_pretrained(teacher_model_name)
+            teacher_model = AutoModelForSequenceClassification.from_pretrained(
+                teacher_model_name,
+                num_labels = n_labels[args.task],
+                ignore_mismatched_sizes = True
+            )
+
+            # Freeze n-layers of teacher model
+            for param in teacher_model.base_model.parameters():
+                param.requires_grad = False
+            freeze_n_layers = configs['models']['freeze_anchor_n_layers']
+            if freeze_n_layers > 0:
+                num_layers = teacher_model.config.num_hidden_layers
+                for i in range(num_layers - freeze_n_layers, num_layers):
+                    for param in teacher_model.base_model.encoder.layer[i].parameters():
+                        param.requires_grad = True
+
+            model = TN_PolarPairs(
+                student_model, teacher_model,
+                num_labels=configs['n_labels'][args.task], 
+                embedding_size=768
+            )
+
+
+            # Create datasets
+            source_langs = languages.copy()
+            source_langs.remove(language)
+            train, val = load_multilingual_data_strict(
+                subtask=args.task, 
+                source_languages=source_langs, 
+                target_lang=language,
+                mode='train', 
+                verbose=False)
+            train_dataset = PolarizationDataset(
+                texts=train['text'].tolist(), 
+                labels=train[TASKS_LABELS_NAMES[args.task]].values.tolist(), 
+                tokenizer=teacher_tokenizer,
+                n_classes=configs['n_labels'][args.task])
+            val_dataset = PolarizationDataset(
+                texts=val['text'].tolist(), 
+                labels=val[TASKS_LABELS_NAMES[args.task]].values.tolist(),
+                tokenizer=teacher_tokenizer,
+                n_classes=configs['n_labels'][args.task])
+            
+            # Initialize the Trainer & Train the model
+            trainer = TN_PolarPairsTrainer(
+                model=model,                         # the instantiated 🤗 Transformers model to be trained
+                args=training_args,                  # training arguments, defined above
+                train_dataset=train_dataset,         # training dataset
+                eval_dataset=val_dataset,            # evaluation dataset
+                compute_metrics=TASKS_METRIC[args.task],     # the callback that computes metrics of interest
+                data_collator=DataCollatorWithPadding(teacher_tokenizer), # Data collator for dynamic padding
+                # callbacks=[EarlyStoppingCallback(early_stopping_patience=1)]
+                **training_params['TNCSE']
+            )
+            trainer.train()
+
+            # Evaluate the model on the validation set
+            eval_results = trainer.evaluate()
+            print(f"Macro F1 score on validation set for Subtask 2: {eval_results['eval_f1_macro']}")
 
             # Save modelto hugging-face and  experiment details to experiment-tracker
             # if args.save_models:

@@ -1,6 +1,6 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import torch # type: ignore
+import torch.nn as nn # type: ignore
+import torch.nn.functional as F # type: ignore
 
 def polar_pairs_contrastive_loss(
                 logits, x1_aligned, x2_aligned, polar_labels, 
@@ -66,3 +66,40 @@ def polar_pairs_contrastive_loss(
         total_loss = (1.0 - lambda_align) * classification_loss + lambda_align * alignment_loss
 
         return total_loss, classification_loss, alignment_loss
+
+def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels, tau):
+        
+        num_classes = logits.size(1)
+        class_counts = torch.bincount(polar_labels, minlength=num_classes)
+        class_weights = 1.0 / (class_counts.float() + 1e-6)
+        class_weights = class_weights / class_weights.sum()
+        class_weights = class_weights.to(logits.device)
+        classification_loss = F.cross_entropy(logits, polar_labels, weight=class_weights)
+
+        labels_equal = polar_labels.unsqueezq(1) == polar_labels.unsqueeze(0)
+        mask = torch.eye(logits.size(0), device=logits.device()).bool()
+
+        # Interaction Constraint InfoNCE Loss
+        x1_cls_norm = F.normalize(x1_cls, p=2, dim=1)
+        x2_cls_norm = F.normalize(x2_cls, p=2, dim=1)
+        cls_similarity = torch.mm(x1_cls_norm, x2_cls_norm.t()) / tau
+        cls_similarity = torch.exp(cls_similarity)
+        cls_similarity = cls_similarity.masked_fill(mask, 0)
+        pos = (cls_similarity * labels_equal.float()).sum(dim=1)
+        all = cls_similarity.sum(dim=1)
+        icnce_loss =  -torch.log((pos + 1e-8) / (all + 1e-8))
+
+        # tnce Loss
+        diff = x1_pool.unsqueeze(1) - x2_pool.unsqueze(0)
+        diff_norms = F.normalize(diff,p=2, dim=2)
+        x1_pool_norm = F.normalize(x1_pool, p=2, dim=1)
+        x2_pool_norm = F.normalize(x2_pool, p=2, dim=1)
+        sum_norms = x1_pool_norm.unsqueeze(1) + x2_pool_norm.unsqueeze(0)
+        tensor_norm_loss = diff_norms / (sum_norms + 1e-8)
+        tensor_norm_loss = tensor_norm_loss * labels_equal.float()
+        n_positives = labels_equal.sum(dim=1).float()
+        tnc_loss = -torch.lof(cls_similarity) * tensor_norm_loss
+        tnc_loss_per_sample = tnc_loss.sum(dim=1) / (n_positives + 1e-8)
+        tnce_loss = tnc_loss_per_sample.mean()
+
+        return classification_loss, tnce_loss, icnce_loss

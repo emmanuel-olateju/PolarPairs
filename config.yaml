@@ -19,11 +19,19 @@ languages:
 models:
   slave_model: "sentence-transformers/LaBSE"
   anchor_model: None
+  freeze_slave_n_layers: 0
+  freeze_anchor_n_layers: 4
 
 training:
   lr: !!float 1e-4
   batch_size: 8
   n_epochs: 5
+  
+  TNCSE:
+    alpha: 1
+    beta: 1
+    gamma: 1
+    tau: 0.05
 
 n_labels:
   subtask1: 2

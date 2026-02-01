@@ -1,13 +1,17 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-import torch
-import torch.nn as nn
+import torch # type: ignore
+import torch.nn as nn # type: ignore
 
-from transformers import AutoModel, Trainer
-from transformers import DataCollatorWithPadding
+from transformers import AutoModel, Trainer # type: ignore
+from transformers import DataCollatorWithPadding # type: ignore
 
-from  losses import polar_pairs_contrastive_loss
+from  losses import polar_pairs_contrastive_loss, tnc_contrastive_loss
+
+#=================
+# DATA COLLATORS
+#=================
 
 class CustomDataCollator(DataCollatorWithPadding):
     def __call__(self, features):
@@ -39,11 +43,97 @@ class PolarPairsCollator:
         batch['hat_labels'] = torch.stack([f['hat_labels'] for f in features])
 
         return batch
+    
+@dataclass
+class TN_PolarPairsCollator:
+    def __call__(self, features):
+        batch = {}
 
-class MultiLingualPolarPairsAlignment(nn.Module):
+        batch['x_input_ids'] = torch.stack(f['x_input_ids'] for f in features)
+        batch['x_attention_mask'] = torch.stack(f['x_attention_mask'] for f in features)
+
+        polar_labels = []
+        for f in features:
+            label = f['polar_labels']
+            if isinstance(label, torch.Tensor):
+                polar_labels.append(label.item() if label.dim() == 0 else label[0].item())
+            else:
+                polar_labels.append(int(label))
+
+        batch['polar_labels'] = torch.tensor(polar_labels, dtype=torch.long)
+
+        return batch
+    
+#=================
+# MODELS
+#=================
+    
+class TN_PolarPairs(nn.Module):
+
+    def __init__(self, student_model, teacher_model, num_labels, embedding_size):
+        super(TN_PolarPairs, self).__init__()
+
+        self.student_encoder = student_model
+        self.teacher_encoder = teacher_model
+        self.student_encoder.train()
+        self.teacher_encoder.train()
+
+        student_encoder_config = self.student_encoder.config
+        teacher_encoder_config = self.teacher_encoder.config
+        student_embedding_size = student_encoder_config.embedding_size
+        teacher_embedding_Size = teacher_encoder_config.embedding_size
+
+        self.student_alignment_head = nn.Linear(student_embedding_size, embedding_size)
+        self.teacher_alignment_head = nn.Linear(teacher_embedding_Size, embedding_size)
+
+        self.student_pooler = nn.Linear(embedding_size, embedding_size)
+        self.teacher_pooler = nn.Linear(embedding_size, embedding_size)
+
+        self.classification_head = nn.Linear(embedding_size, num_labels)
+
+    def get_last_hidden_states(self, x_input_ids, x_attention_mask):
+        x1_hidden = self.student_encoder(
+            input_ids = x_input_ids,
+            x_attention_mask = x_attention_mask
+            ).last_hidden_state()
+        x1_hidden = x1_hidden[:, 0, :]
+
+        x2_hidden = self.teacher_encoder(
+            input_ids = x_input_ids, 
+            x_attention_mask = x_attention_mask
+        ).last_hidden_state()
+        x2_hidden = x2_hidden[:, 0, :]
+
+        return x1_hidden, x2_hidden
+
+    def forward(self, x_input_ids, x_attention_mask):
+        x1_cls, x2_cls = self.get_last_hidden_states(x_input_ids, x_attention_mask)
+        x1_cls = self.student_alignment_head(x1_cls)
+        x2_cls = self.teacher_alignment_head(x2_cls)
+
+        x1_pool = self.student_pooler(x1_cls)
+        x2_pool = self.teacher_pooler(x2_cls)
+
+        logits = self.classification_head(x1_pool)
+
+        return logits, (x1_cls, x2_cls), (x1_pool, x2_pool)
+    
+    def compute_embeddings_logits(self, x_input_ids, x_attention_mask, polar_labels):
+        logits, (x1_cls, x2_cls), (x1_pool, x2_pool) = self.forward(x_input_ids, x_attention_mask)
+
+        return {
+            'student_cls': x1_cls,
+            'student_pool': x1_pool,
+            'teacher_cls': x2_cls,
+            'teacher_pool': x2_pool,
+            'logits': logits,
+            'labels': polar_labels
+        }
+
+class MultiLingual_PolarPairs(nn.Module):
 
     def __init__(self, encoder_model_name, pretrained_encoder_name, num_labels, alignment_normalization=True, alignment_residual=True):
-        super(MultiLingualPolarPairsAlignment, self).__init__()
+        super(MultiLingual_PolarPairs, self).__init__()
 
         self.encoder = AutoModel.from_pretrained(encoder_model_name)
         self.encoder.train()
@@ -129,12 +219,15 @@ class MultiLingualPolarPairsAlignment(nn.Module):
 
     def compute_logits(self, x_input_ids, x_attention_mask, polar_labels):
         embeddings = self.compute_embeddings(x_input_ids, x_attention_mask, polar_labels)
-        logits = self.compute_embeddings(embeddings['embeddings'])
+        logits = self.compute_embeddings(embeddings['embeddings']) # type: ignore
         return {
             'logits': logits,
             'labels': polar_labels
         }
 
+#=================
+# TRAINERS
+#=================
 
 class PolarPairsTrainer(Trainer):
     def __init__(self, lambda_align=0.5, temperature=0.07, *args, **kwargs):
@@ -187,4 +280,54 @@ class PolarPairsTrainer(Trainer):
         if prediction_loss_only:
             return (loss.detach(), None, None)
 
+        return (loss.detach(), logits.detach().cpu(), labels)
+    
+
+class TN_PolarPairsTrainer(Trainer):
+    def __init__(self, alpha=1, beta=1, gamma=1, temperature=0.05, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        self.tau = temperature
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        logits, (x1_cls, x2_cls), (x1_pool, x2_pool) = model(
+            x_input_ids = inputs['x_input_ids'],
+            x_attention_mask = inputs['x_attention_mask'],
+            polar_labels  = inputs['polar_labels']
+        )
+
+        ce_loss, tnc_loss, icnce_loss = tnc_contrastive_loss(
+            logits = logits,
+            x1_cls = x1_cls, x2_cls = x2_cls,
+            x1_pool = x1_pool, x2_pool = x2_pool,
+            polar_labels = inputs['polar_labels'],
+            tau = self.tau
+        )
+
+        total_loss = (self.alpha * tnc_loss) + (self.beta * ce_loss) + (self.gamma * icnce_loss)
+
+        if self.state.global_step % 10 == 0:
+            self.log({
+                'loss': total_loss.item(),
+                'cross_entropy_loss': ce_loss.item()
+            })
+
+        if return_outputs:
+            outputs = {'logits': logits}
+            return total_loss, outputs
+        else:
+            return total_loss
+        
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        with torch.no_grad():
+            loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
+            logits = outputs['logits']
+
+        labels = inputs['polar_labels'].detach().cpu()
+
+        if prediction_loss_only:
+            return (loss.detach(), None, None)
+        
         return (loss.detach(), logits.detach().cpu(), labels)
