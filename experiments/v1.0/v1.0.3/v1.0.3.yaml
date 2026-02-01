@@ -1,0 +1,48 @@
+author: Emmanuel Olateju
+baseline: v1.0
+date: 31-01-2026
+description: 'Train different model instance for each language using train-val-test
+  split of 70-10-20. Goal is to identify what model consistently performs best across
+  languages and subtasks '
+messages:
+- Switched to sentence-transformers/LaBSE
+- Here we want to test full fine-tuning of a large model to see if previous smaller/distilled
+  models are as good as it
+name: Language Decoupled (Independent / Mono-Lingual) Performance
+parameters:
+  Performance:
+    amh_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.7129600446103864
+      eval_loss: 0.7393725514411926
+      eval_runtime: 1.8126
+      eval_samples_per_second: 367.983
+      eval_steps_per_second: 46.343
+    eng_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.7863025369178342
+      eval_loss: 0.7523199915885925
+      eval_runtime: 1.2826
+      eval_samples_per_second: 502.88
+      eval_steps_per_second: 63.152
+    hau_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.805222488675726
+      eval_loss: 0.25195080041885376
+      eval_runtime: 2.0301
+      eval_samples_per_second: 360.073
+      eval_steps_per_second: 45.317
+    swa_eval_results:
+      epoch: 5.0
+      eval_f1_macro: 0.7784130390353566
+      eval_loss: 0.7472078204154968
+      eval_runtime: 2.966
+      eval_samples_per_second: 471.684
+      eval_steps_per_second: 59.003
+  Training:
+    anchor_model: None
+    batch_size: 8
+    lr: 0.0001
+    n_epochs: 5
+    slave_model: sentence-transformers/LaBSE
+version: v1.0.3
