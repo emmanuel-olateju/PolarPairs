@@ -410,6 +410,218 @@ def load_multilingual_data(
     
     return train_df, val_df
 
+
+# --- Alternative: Simpler version without target language in training ---
+
+def load_multilingual_data_strict(
+    subtask: str, 
+    source_languages: List[str],
+    target_lang: str, 
+    test_size: float = 0.2, 
+    random_state: int = 42, 
+    mode: str = 'train', 
+    verbose: bool = True
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Load multilingual data where training uses ONLY source languages,
+    and validation uses ONLY target language.
+    
+    Supports MULTI-LABEL, MULTI-CLASS classification across all subtasks.
+    
+    Args:
+        subtask (str): Subtask name ('subtask1', 'subtask2', 'subtask3')
+        source_languages (list): List of source language codes (e.g., ['swa', 'fra', 'ara'])
+        target_lang (str): Target language code for validation (e.g., 'eng')
+        test_size (float): Proportion of target language for validation (default: 0.2)
+        random_state (int): Random seed for reproducibility (default: 42)
+        mode (str): Data mode - 'train' or 'test' (default: 'train')
+        verbose (bool): Print distribution statistics (default: True)
+    
+    Returns:
+        tuple: (train_df, val_df)
+    """
+    
+    # Get label columns for this subtask
+    label_cols = TASKS_LABELS_NAMES[subtask]
+    is_multilabel = isinstance(label_cols, list)
+    
+    def parse_labels_subtask1(label):
+        """Parse label for subtask1 (single or multi-class)"""
+        if isinstance(label, list):
+            return label
+        elif isinstance(label, str):
+            label = label.strip('[]')
+            if ',' in label:
+                return [int(x.strip()) for x in label.split(',')]
+            else:
+                return [int(label)]
+        else:
+            return [int(label)]
+    
+    def count_labels(df, label_cols):
+        """Count label occurrences"""
+        if isinstance(label_cols, list):
+            # Multi-label case (subtask2, subtask3)
+            counts = {}
+            for col in label_cols:
+                counts[col] = df[col].sum()
+            return counts
+        else:
+            # Single label case (subtask1)
+            all_labels = [label for labels in df['polarization_parsed'] for label in labels]
+            return Counter(all_labels)
+    
+    # --- 1. Load source languages for training ---
+    train_data = []
+    
+    if not source_languages:
+        raise ValueError("source_languages cannot be empty!")
+    
+    for lang in source_languages:
+        file_path = f'data/{subtask}/{mode}/{lang}.csv'
+        
+        try:
+            df = pd.read_csv(file_path)
+            df['language'] = lang
+            
+            # Select appropriate columns based on subtask
+            if is_multilabel:
+                # Subtask 2 or 3: multi-label binary columns
+                cols_to_keep = ['text', 'language'] + label_cols
+            else:
+                # Subtask 1: single polarization column
+                cols_to_keep = ['text', 'polarization', 'language']
+            
+            train_data.append(df[cols_to_keep])
+            
+        except FileNotFoundError:
+            print(f"WARNING: File not found: {file_path}")
+        except KeyError as e:
+            print(f"ERROR: Missing columns in {file_path}: {e}")
+            print(f"  Available columns: {df.columns.tolist()}")
+            raise
+    
+    if not train_data:
+        raise ValueError(
+            f"No data loaded! Check that files exist in 'data/{subtask}/{mode}/' "
+            f"for languages: {source_languages}"
+        )
+    
+    train_df = pd.concat(train_data, ignore_index=True)
+    train_df = train_df.sample(frac=1, random_state=random_state).reset_index(drop=True)
+    
+    # --- 2. Load target language and split for validation ---
+    target_file_path = f'data/{subtask}/{mode}/{target_lang}.csv'
+    
+    try:
+        target_df = pd.read_csv(target_file_path)
+        target_df['language'] = target_lang
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Target language file not found: {target_file_path}")
+    
+    # --- 3. Prepare labels for stratification ---
+    if is_multilabel:
+        # Subtask 2 or 3: Use binary columns directly
+        y_binary = target_df[label_cols].values
+    else:
+        # Subtask 1: Parse and binarize
+        target_df['polarization_parsed'] = target_df['polarization'].apply(parse_labels_subtask1)
+        mlb = MultiLabelBinarizer()
+        y_binary = mlb.fit_transform(target_df['polarization_parsed'])
+    
+    # --- 4. Stratified split for multi-label ---
+    msss = MultilabelStratifiedShuffleSplit(
+        n_splits=1, 
+        test_size=test_size, 
+        random_state=random_state
+    )
+    
+    for train_idx, val_idx in msss.split(target_df, y_binary):
+        target_train = target_df.iloc[train_idx].reset_index(drop=True)
+        val_df = target_df.iloc[val_idx].reset_index(drop=True)
+    
+    # Clean up temporary column for subtask1
+    if not is_multilabel:
+        target_train = target_train.drop('polarization_parsed', axis=1, errors='ignore')
+        val_df = val_df.drop('polarization_parsed', axis=1, errors='ignore')
+    
+    # --- 5. Print statistics (if verbose) ---
+    if verbose:
+        print("=" * 60)
+        print(f"Dataset: {subtask}")
+        print(f"Source Languages (training): {source_languages}")
+        print(f"Target Language (validation): {target_lang}")
+        print(f"Label type: {'Multi-label' if is_multilabel else 'Multi-class'}")
+        print("=" * 60)
+        print(f"\nTrain set size: {len(train_df)}")
+        print(f"Validation set size: {len(val_df)}")
+        
+        print("\n--- Language Distribution in Training Set ---")
+        print(train_df['language'].value_counts().sort_index())
+        
+        if is_multilabel:
+            # Subtask 2 or 3 statistics
+            print("\n--- Label Distribution (Multi-Label Binary) ---")
+            
+            print("\nTrain Set:")
+            train_label_counts = count_labels(train_df, label_cols)
+            for label, count in train_label_counts.items():
+                print(f"  {label}: {count} ({count/len(train_df)*100:.2f}%)")
+            
+            print("\nValidation Set:")
+            val_label_counts = count_labels(val_df, label_cols)
+            for label, count in val_label_counts.items():
+                print(f"  {label}: {count} ({count/len(val_df)*100:.2f}%)")
+            
+            # Show label combinations
+            print("\n--- Label Combinations (Top 10) ---")
+            train_df['label_combo'] = train_df[label_cols].apply(
+                lambda row: str([col for col in label_cols if row[col] == 1]), axis=1
+            )
+            val_df['label_combo'] = val_df[label_cols].apply(
+                lambda row: str([col for col in label_cols if row[col] == 1]), axis=1
+            )
+            
+            print("\nTrain Set:")
+            combo_counts = train_df['label_combo'].value_counts()
+            for combo, count in combo_counts.head(10).items():
+                print(f"  {combo}: {count} ({count/len(train_df)*100:.2f}%)")
+            
+            print("\nValidation Set:")
+            combo_counts = val_df['label_combo'].value_counts()
+            for combo, count in combo_counts.head(10).items():
+                print(f"  {combo}: {count} ({count/len(val_df)*100:.2f}%)")
+            
+            # Clean up
+            train_df = train_df.drop('label_combo', axis=1)
+            val_df = val_df.drop('label_combo', axis=1)
+            
+        else:
+            # Subtask 1 statistics
+            print("\n--- Polarization Distribution (Multi-Class) ---")
+            
+            train_df['polarization_parsed'] = train_df['polarization'].apply(parse_labels_subtask1)
+            val_df['polarization_parsed'] = val_df['polarization'].apply(parse_labels_subtask1)
+            
+            print("\nTrain Set (individual label frequencies):")
+            train_counts = count_labels(train_df, 'polarization')
+            for label, count in sorted(train_counts.items()):
+                print(f"  Label {label}: {count} ({count/len(train_df)*100:.2f}%)")
+            
+            print("\nValidation Set (individual label frequencies):")
+            val_counts = count_labels(val_df, 'polarization')
+            for label, count in sorted(val_counts.items()):
+                print(f"  Label {label}: {count} ({count/len(val_df)*100:.2f}%)")
+            
+            # Clean up
+            train_df = train_df.drop('polarization_parsed', axis=1)
+            val_df = val_df.drop('polarization_parsed', axis=1)
+        
+        print("=" * 60)
+    
+    return train_df, val_df
+
+
 class PolarPairsDataset(Dataset):
     """Combined dataset with stratified target sampling"""
     def __init__(self, source_texts, target_texts, source_labels, target_labels,
