@@ -68,12 +68,15 @@ def polar_pairs_contrastive_loss(
         return total_loss, classification_loss, alignment_loss
 
 def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels, tau):
+    """
+    FIXED: Added numerical stability and proper handling
+    """
     
+    # Handle multi-label vs single-label
     if polar_labels.dim() > 1 and polar_labels.size(1) > 1:
-        # Multi-label classification
         classification_loss = F.binary_cross_entropy_with_logits(logits, polar_labels.float())
+        labels_equal = (polar_labels.unsqueeze(1) * polar_labels.unsqueeze(0)).sum(dim=-1) > 0
     else:
-        # Single-label classification
         if polar_labels.dim() > 1:
             polar_labels = polar_labels.squeeze(-1)
         
@@ -83,36 +86,82 @@ def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels,
         class_weights = class_weights / class_weights.sum()
         class_weights = class_weights.to(logits.device)
         classification_loss = F.cross_entropy(logits, polar_labels, weight=class_weights)
+        labels_equal = (polar_labels.unsqueeze(1) == polar_labels.unsqueeze(0))
     
-    # For contrastive loss, we need to compare if ANY label matches
-    # labels_equal[i,j] = True if samples i and j share ANY label
-    labels_equal = (polar_labels.unsqueeze(1) * polar_labels.unsqueeze(0)).sum(dim=-1) > 0
+    # Check if we have any positive pairs
+    n_positives = labels_equal.sum(dim=1).float()
+    has_positives = (n_positives > 0).float()
+    
+    # If no positives in batch, skip contrastive losses
+    if has_positives.sum() == 0:
+        return classification_loss, torch.tensor(0.0, device=logits.device), torch.tensor(0.0, device=logits.device)
     
     mask = torch.eye(logits.size(0), device=logits.device).bool()
     
-    # Interaction Constraint InfoNCE Loss
+    # ============================================
+    # ICNCE Loss (Interaction Constraint InfoNCE)
+    # ============================================
     x1_cls_norm = F.normalize(x1_cls, p=2, dim=1)
     x2_cls_norm = F.normalize(x2_cls, p=2, dim=1)
+    
+    # Compute similarity
     cls_similarity = torch.mm(x1_cls_norm, x2_cls_norm.t()) / tau
+    
+    # Clamp for numerical stability BEFORE exp
+    cls_similarity = torch.clamp(cls_similarity, min=-10, max=10)
+    
     cls_similarity = torch.exp(cls_similarity)
     cls_similarity = cls_similarity.masked_fill(mask, 0)
-    pos = (cls_similarity * labels_equal.float()).sum(dim=1)
-    all = cls_similarity.sum(dim=1)
-    icnce_loss = -torch.log((pos + 1e-8) / (all + 1e-8))
-    icnce_loss = icnce_loss.mean()
     
-    # tnce Loss
-    diff = x1_pool.unsqueeze(1) - x2_pool.unsqueeze(0)
-    diff_norms = F.normalize(diff, p=2, dim=2)
-    x1_pool_norm = F.normalize(x1_pool, p=2, dim=1)
-    x2_pool_norm = F.normalize(x2_pool, p=2, dim=1)
-    sum_norms = x1_pool_norm.unsqueeze(1) + x2_pool_norm.unsqueeze(0)
-    tensor_norm_loss = diff_norms / (sum_norms + 1e-8)
-    tensor_norm_loss = tensor_norm_loss.sum(dim=-1)  # Sum over embedding dim
+    # Positive and all similarities
+    pos = (cls_similarity * labels_equal.float()).sum(dim=1)
+    all_sim = cls_similarity.sum(dim=1)
+    
+    # Add stronger epsilon and clamp
+    eps = 1e-6
+    pos = torch.clamp(pos, min=eps)
+    all_sim = torch.clamp(all_sim, min=eps)
+    
+    # InfoNCE loss with clamping
+    ratio = pos / all_sim
+    ratio = torch.clamp(ratio, min=eps, max=1.0)
+    icnce_loss = -torch.log(ratio)
+    
+    # Only average over samples with positives
+    icnce_loss = (icnce_loss * has_positives).sum() / (has_positives.sum() + eps)
+    
+    # ============================================
+    # TNC Loss (Tensor Norm Constraint)
+    # ============================================
+    # Compute differences
+    diff = x1_pool.unsqueeze(1) - x2_pool.unsqueeze(0)  # [batch, batch, dim]
+    diff_norms = torch.norm(diff, p=2, dim=2)  # [batch, batch]
+    
+    # Compute sum of norms
+    x1_pool_norm = torch.norm(x1_pool, p=2, dim=1)  # [batch]
+    x2_pool_norm = torch.norm(x2_pool, p=2, dim=1)  # [batch]
+    sum_norms = x1_pool_norm.unsqueeze(1) + x2_pool_norm.unsqueeze(0)  # [batch, batch]
+    
+    # Avoid division by zero with stronger epsilon
+    eps = 1e-4
+    sum_norms = torch.clamp(sum_norms, min=eps)
+    
+    # Tensor norm loss
+    tensor_norm_loss = diff_norms / sum_norms  # [batch, batch]
+    
+    # Only consider positive pairs
     tensor_norm_loss = tensor_norm_loss * labels_equal.float()
-    n_positives = labels_equal.sum(dim=1).float()
-    tnc_loss = -torch.log(cls_similarity + 1e-8) * tensor_norm_loss
-    tnc_loss_per_sample = tnc_loss.sum(dim=1) / (n_positives + 1e-8)
-    tnce_loss = tnc_loss_per_sample.mean()
+    
+    # Weighted by similarity (with clamping)
+    cls_similarity_clamped = torch.clamp(cls_similarity, min=eps, max=1e6)
+    weighted_tnc = -torch.log(cls_similarity_clamped + eps) * tensor_norm_loss
+    
+    # Average per sample (only over samples with positives)
+    tnc_per_sample = weighted_tnc.sum(dim=1) / (n_positives + eps)
+    tnce_loss = (tnc_per_sample * has_positives).sum() / (has_positives.sum() + eps)
+    
+    # Final clamping to prevent explosion
+    icnce_loss = torch.clamp(icnce_loss, max=10.0)
+    tnce_loss = torch.clamp(tnce_loss, max=10.0)
     
     return classification_loss, tnce_loss, icnce_loss

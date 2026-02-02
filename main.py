@@ -24,7 +24,7 @@ from transformers import DataCollatorWithPadding # type: ignore
 
 TASKS_METRIC = {
     'subtask1': subtask1_codabench_compute_metrics,
-    'subtask2': subtask2_codabench_compute_metrics_multilabel,
+    'subtask2': compute_metrics,
     'subtask3': compute_metrics
 }
 TASKS_LABELS_NAMES = {
@@ -84,15 +84,15 @@ def main():
         save_strategy = 'no',
         logging_steps = 50,
         learning_rate = training_params['lr'],
-        # max_grad_norm = 1.0,
+        max_grad_norm = 1.0,
         lr_scheduler_type = 'cosine',
         # warmup_ratio = 0.1,
         fp16 = True,
         # weight_decay = 0.1,
         dataloader_num_workers = 0,
         load_best_model_at_end = False,
-        eval_accumulation_steps = 1,
         gradient_checkpointing = False,
+        eval_accumulation_steps = 1,
         # metric_for_best_model="eval_loss",
         disable_tqdm=False
     )
