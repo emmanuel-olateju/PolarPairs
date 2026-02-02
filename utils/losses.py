@@ -69,23 +69,21 @@ def polar_pairs_contrastive_loss(
 
 def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels, tau):
     
-    # Flatten polar_labels to 1D if needed
-    if polar_labels.dim() > 1:
-        polar_labels = polar_labels.squeeze()
+    if polar_labels.size(1) > 2:
+        # Multi-label classification loss (BCE with logits)
+        classification_loss = F.binary_cross_entropy_with_logits(logits, polar_labels.float())
+    else:
+        num_classes = logits.size(1)
+        class_counts = torch.bincount(polar_labels, minlength=num_classes)
+        class_weights = 1.0 / (class_counts.float() + 1e-6)
+        class_weights = class_weights / class_weights.sum()
+        class_weights = class_weights.to(logits.device)
+        classification_loss = F.cross_entropy(logits, polar_labels, weight=class_weights)
     
-    # Ensure it's long type
-    polar_labels = polar_labels.long()
+    # For contrastive loss, we need to compare if ANY label matches
+    # labels_equal[i,j] = True if samples i and j share ANY label
+    labels_equal = (polar_labels.unsqueeze(1) * polar_labels.unsqueeze(0)).sum(dim=-1) > 0
     
-    num_classes = logits.size(1)
-    class_counts = torch.bincount(polar_labels, minlength=num_classes)
-    class_weights = 1.0 / (class_counts.float() + 1e-6)
-    class_weights = class_weights / class_weights.sum()
-    class_weights = class_weights.to(logits.device)
-    classification_loss = F.cross_entropy(logits, polar_labels, weight=class_weights)
-    
-    # FIXED: unsqueezq -> unsqueeze
-    labels_equal = polar_labels.unsqueeze(1) == polar_labels.unsqueeze(0)
-    # FIXED: .device() -> .device
     mask = torch.eye(logits.size(0), device=logits.device).bool()
     
     # Interaction Constraint InfoNCE Loss
@@ -96,21 +94,20 @@ def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels,
     cls_similarity = cls_similarity.masked_fill(mask, 0)
     pos = (cls_similarity * labels_equal.float()).sum(dim=1)
     all = cls_similarity.sum(dim=1)
-    icnce_loss =  -torch.log((pos + 1e-8) / (all + 1e-8))
-    icnce_loss = icnce_loss.mean()  # Add mean here
+    icnce_loss = -torch.log((pos + 1e-8) / (all + 1e-8))
+    icnce_loss = icnce_loss.mean()
     
     # tnce Loss
-    # FIXED: unsqueze -> unsqueeze
     diff = x1_pool.unsqueeze(1) - x2_pool.unsqueeze(0)
     diff_norms = F.normalize(diff, p=2, dim=2)
     x1_pool_norm = F.normalize(x1_pool, p=2, dim=1)
     x2_pool_norm = F.normalize(x2_pool, p=2, dim=1)
     sum_norms = x1_pool_norm.unsqueeze(1) + x2_pool_norm.unsqueeze(0)
     tensor_norm_loss = diff_norms / (sum_norms + 1e-8)
-    tensor_norm_loss = tensor_norm_loss * labels_equal.float().unsqueeze(-1)  # Add unsqueeze for broadcasting
+    tensor_norm_loss = tensor_norm_loss.sum(dim=-1)  # Sum over embedding dim
+    tensor_norm_loss = tensor_norm_loss * labels_equal.float()
     n_positives = labels_equal.sum(dim=1).float()
-    # FIXED: torch.lof -> torch.log
-    tnc_loss = -torch.log(cls_similarity + 1e-8) * tensor_norm_loss.squeeze(-1)  # Add squeeze
+    tnc_loss = -torch.log(cls_similarity + 1e-8) * tensor_norm_loss
     tnc_loss_per_sample = tnc_loss.sum(dim=1) / (n_positives + 1e-8)
     tnce_loss = tnc_loss_per_sample.mean()
     
