@@ -194,10 +194,11 @@ def main():
             source_langs.remove(language)
             print("Source Languages: ", source_langs)
             print("Languages: ", languages)
-            train, val = load_multilingual_data_strict(
+            train, val = load_multilingual_data(
                 subtask=args.task, 
-                source_languages=source_langs, 
+                languages=source_langs, 
                 target_lang=language,
+                target_train_ratio=0.6,
                 mode='train', 
                 verbose=False)
             train_dataset = CrossLingualDataset(

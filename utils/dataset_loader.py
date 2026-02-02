@@ -3,6 +3,7 @@ from typing import List, Tuple, Union
 import math
 import numpy as np
 import pandas as pd
+from collections import Counter
 from sklearn.model_selection import StratifiedShuffleSplit
 
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
