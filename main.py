@@ -2,7 +2,8 @@ from utils.dataset_loader import (
     load_and_split_bilingual_data, 
     load_multilingual_data, 
     load_multilingual_data_strict, 
-    PolarizationDataset)
+    PolarizationDataset, 
+    CrossLingualDataset)
 from utils.metrics import (
     subtask1_codabench_compute_metrics, 
     subtask2_codabench_compute_metrics_multilabel, 
@@ -18,7 +19,7 @@ import argparse
 import numpy as np # type: ignore
 import torch as torch # type: ignore
 from transformers.training_args import TrainingArguments # type: ignore
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer # type: ignore
+from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, Trainer # type: ignore
 from transformers import DataCollatorWithPadding # type: ignore
 
 TASKS_METRIC = {
@@ -155,11 +156,7 @@ def main():
             # Load the tokenizer and model
             student_model_name = configs['models']['slave_model']
             student_tokenizer = AutoTokenizer.from_pretrained(student_model_name)
-            student_model = AutoModelForSequenceClassification.from_pretrained(
-                student_model_name,
-                num_labels = n_labels[args.task],
-                ignore_mismatched_sizes = True
-            )
+            student_model = AutoModel.from_pretrained(student_model_name)
 
             # # Freeze n-layers of student model
             # for param in student_model.base_model.parameters():
@@ -173,11 +170,7 @@ def main():
 
             teacher_model_name = configs['models']['anchor_model']
             teacher_tokenizer = AutoTokenizer.from_pretrained(teacher_model_name)
-            teacher_model = AutoModelForSequenceClassification.from_pretrained(
-                teacher_model_name,
-                num_labels = n_labels[args.task],
-                ignore_mismatched_sizes = True
-            )
+            teacher_model = AutoModel.from_pretrained(teacher_model_name,)
 
             # Freeze n-layers of teacher model
             for param in teacher_model.base_model.parameters():
@@ -197,24 +190,26 @@ def main():
 
 
             # Create datasets
-            source_langs = languages.copy()
+            source_langs = configs['languages']
             source_langs.remove(language)
+            print("Source Languages: ", source_langs)
+            print("Languages: ", languages)
             train, val = load_multilingual_data_strict(
                 subtask=args.task, 
                 source_languages=source_langs, 
                 target_lang=language,
                 mode='train', 
                 verbose=False)
-            train_dataset = PolarizationDataset(
-                texts=train['text'].tolist(), 
-                labels=train[TASKS_LABELS_NAMES[args.task]].values.tolist(), 
-                tokenizer=teacher_tokenizer,
-                n_classes=configs['n_labels'][args.task])
-            val_dataset = PolarizationDataset(
-                texts=val['text'].tolist(), 
-                labels=val[TASKS_LABELS_NAMES[args.task]].values.tolist(),
-                tokenizer=teacher_tokenizer,
-                n_classes=configs['n_labels'][args.task])
+            train_dataset = CrossLingualDataset(
+              dataframe = train, 
+              subtask = args.task,
+              tokenizer = teacher_tokenizer,
+              mode='train')
+            val_dataset = CrossLingualDataset(
+              dataframe = val, 
+              subtask = args.task,
+              tokenizer = teacher_tokenizer,
+              mode='eval')
             
             # Initialize the Trainer & Train the model
             trainer = TN_PolarPairsTrainer(
@@ -223,10 +218,9 @@ def main():
                 train_dataset=train_dataset,         # training dataset
                 eval_dataset=val_dataset,            # evaluation dataset
                 compute_metrics=TASKS_METRIC[args.task],     # the callback that computes metrics of interest
-                data_collator=DataCollatorWithPadding(teacher_tokenizer), # Data collator for dynamic padding
+                data_collator=TN_PolarPairsCollator(), # Data collator for dynamic padding
                 # callbacks=[EarlyStoppingCallback(early_stopping_patience=1)]
-                **training_params['TNCSE']
-            )
+                **training_params['TNCSE'])
             trainer.train()
 
             # Evaluate the model on the validation set

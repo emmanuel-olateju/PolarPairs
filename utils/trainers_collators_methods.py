@@ -7,7 +7,7 @@ import torch.nn as nn # type: ignore
 from transformers import AutoModel, Trainer # type: ignore
 from transformers import DataCollatorWithPadding # type: ignore
 
-from  losses import polar_pairs_contrastive_loss, tnc_contrastive_loss
+from  .losses import polar_pairs_contrastive_loss, tnc_contrastive_loss
 
 #=================
 # DATA COLLATORS
@@ -46,21 +46,25 @@ class PolarPairsCollator:
     
 @dataclass
 class TN_PolarPairsCollator:
-    def __call__(self, features):
+    """
+    Custom data collator for TN_PolarPairs that converts standard format
+    (input_ids, labels) to the format expected by the model (x_input_ids, polar_labels)
+    """
+    
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
         batch = {}
 
-        batch['x_input_ids'] = torch.stack(f['x_input_ids'] for f in features)
-        batch['x_attention_mask'] = torch.stack(f['x_attention_mask'] for f in features)
+        batch['x_input_ids'] = torch.stack([f['x_input_ids'] for f in features])
+        batch['x_attention_mask'] = torch.stack([f['x_attention_mask'] for f in features])
 
-        polar_labels = []
-        for f in features:
-            label = f['polar_labels']
-            if isinstance(label, torch.Tensor):
-                polar_labels.append(label.item() if label.dim() == 0 else label[0].item())
-            else:
-                polar_labels.append(int(label))
+        # print(features[0]['polar_labels'])
 
-        batch['polar_labels'] = torch.tensor(polar_labels, dtype=torch.long)
+        if isinstance(features[0]['polar_labels'], list):
+            # Multi-label: convert to float tensor
+            batch['polar_labels'] = torch.stack([torch.tensor(f['polar_labels'], dtype=torch.float) for f in features])
+        else:
+            # Single-label: convert to long tensor
+            batch['polar_labels'] = torch.stack([torch.tensor(f['polar_labels'], dtype=torch.long) for f in features])
 
         return batch
     
@@ -78,13 +82,36 @@ class TN_PolarPairs(nn.Module):
         self.student_encoder.train()
         self.teacher_encoder.train()
 
+        # Get embedding size - handle different attribute names across models
         student_encoder_config = self.student_encoder.config
+        if hasattr(student_encoder_config, 'embedding_size'):
+            student_embedding_size = student_encoder_config.embedding_size
+        elif hasattr(student_encoder_config, 'hidden_size'):
+            student_embedding_size = student_encoder_config.hidden_size
+        elif hasattr(student_encoder_config, 'd_model'):
+            student_embedding_size = student_encoder_config.d_model
+        else:
+            raise AttributeError(
+                f"Could not find embedding size in {type(student_encoder_config).__name__}. "
+                f"Available attributes: {dir(student_encoder_config)}"
+            )
+            
+        # Get embedding size - handle different attribute names across models
         teacher_encoder_config = self.teacher_encoder.config
-        student_embedding_size = student_encoder_config.embedding_size
-        teacher_embedding_Size = teacher_encoder_config.embedding_size
+        if hasattr(teacher_encoder_config, 'embedding_size'):
+            teacher_embedding_size = teacher_encoder_config.embedding_size
+        elif hasattr(teacher_encoder_config, 'hidden_size'):
+            teacher_embedding_size = teacher_encoder_config.hidden_size
+        elif hasattr(teacher_encoder_config, 'd_model'):
+            teacher_embedding_size = teacher_encoder_config.d_model
+        else:
+            raise AttributeError(
+                f"Could not find embedding size in {type(student_encoder_config).__name__}. "
+                f"Available attributes: {dir(student_encoder_config)}"
+            )
 
         self.student_alignment_head = nn.Linear(student_embedding_size, embedding_size)
-        self.teacher_alignment_head = nn.Linear(teacher_embedding_Size, embedding_size)
+        self.teacher_alignment_head = nn.Linear(teacher_embedding_size, embedding_size)
 
         self.student_pooler = nn.Linear(embedding_size, embedding_size)
         self.teacher_pooler = nn.Linear(embedding_size, embedding_size)
@@ -92,21 +119,28 @@ class TN_PolarPairs(nn.Module):
         self.classification_head = nn.Linear(embedding_size, num_labels)
 
     def get_last_hidden_states(self, x_input_ids, x_attention_mask):
+        # FIXED: Changed parameter name from x_attention_mask to attention_mask
+        # and removed .last_hidden_state() -> .last_hidden_state
         x1_hidden = self.student_encoder(
             input_ids = x_input_ids,
-            x_attention_mask = x_attention_mask
-            ).last_hidden_state()
+            attention_mask = x_attention_mask
+            ).last_hidden_state
         x1_hidden = x1_hidden[:, 0, :]
 
         x2_hidden = self.teacher_encoder(
             input_ids = x_input_ids, 
-            x_attention_mask = x_attention_mask
-        ).last_hidden_state()
+            attention_mask = x_attention_mask
+        ).last_hidden_state
         x2_hidden = x2_hidden[:, 0, :]
 
         return x1_hidden, x2_hidden
 
-    def forward(self, x_input_ids, x_attention_mask):
+    def forward(self, x_input_ids, x_attention_mask, polar_labels=None):
+        x_input_ids = x_input_ids.squeeze(dim=1)
+        x_attention_mask = x_attention_mask.squeeze(dim=1)
+        # print(x_input_ids)
+        # print(x_input_ids.shape)
+        # print(x_attention_mask.shape)
         x1_cls, x2_cls = self.get_last_hidden_states(x_input_ids, x_attention_mask)
         x1_cls = self.student_alignment_head(x1_cls)
         x2_cls = self.teacher_alignment_head(x2_cls)
