@@ -19,7 +19,7 @@ models:
   slave_model: "setu4993/LEALLA-small"
   anchor_model: "sentence-transformers/LaBSE"
   freeze_slave_n_layers: 0
-  freeze_anchor_n_layers: 0
+  freeze_anchor_n_layers: 8
 
 training:
   lr: !!float 2e-5
