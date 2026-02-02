@@ -198,7 +198,7 @@ def main():
                 subtask=args.task, 
                 languages=source_langs, 
                 target_lang=language,
-                target_train_ratio=0.6,
+                target_train_ratio=0.7,
                 mode='train', 
                 verbose=False)
             train_dataset = CrossLingualDataset(

@@ -22,7 +22,7 @@ models:
   freeze_anchor_n_layers: 0
 
 training:
-  lr: !!float 3e-5
+  lr: !!float 1e-6
   batch_size: 8
   n_epochs: 5
   
