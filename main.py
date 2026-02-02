@@ -24,7 +24,7 @@ from transformers import DataCollatorWithPadding # type: ignore
 
 TASKS_METRIC = {
     'subtask1': subtask1_codabench_compute_metrics,
-    'subtask2': compute_metrics,
+    'subtask2': subtask2_codabench_compute_metrics_multilabel,
     'subtask3': compute_metrics
 }
 TASKS_LABELS_NAMES = {
@@ -79,7 +79,7 @@ def main():
         num_train_epochs = training_params['n_epochs'],
         per_device_train_batch_size = training_params['batch_size'],  # mT5-small can handle 2-4
         per_device_eval_batch_size = training_params['batch_size'],
-        gradient_accumulation_steps = 2,
+        gradient_accumulation_steps = 8,
         eval_strategy = 'epoch',
         save_strategy = 'no',
         logging_steps = 50,
@@ -172,15 +172,16 @@ def main():
             teacher_tokenizer = AutoTokenizer.from_pretrained(teacher_model_name)
             teacher_model = AutoModel.from_pretrained(teacher_model_name,)
 
-            # # Freeze n-layers of teacher model
-            # for param in teacher_model.base_model.parameters():
-            #     param.requires_grad = False
-            # freeze_n_layers = configs['models']['freeze_anchor_n_layers']
-            # if freeze_n_layers > 0:
-            #     num_layers = teacher_model.config.num_hidden_layers
-            #     for i in range(num_layers - freeze_n_layers, num_layers):
-            #         for param in teacher_model.base_model.encoder.layer[i].parameters():
-            #             param.requires_grad = True
+            # Freeze n-layers of teacher model
+            freeze_n_layers = configs['models']['freeze_anchor_n_layers']
+            if freeze_n_layers > 0:
+              for param in teacher_model.base_model.parameters():
+                  param.requires_grad = False
+
+              num_layers = teacher_model.config.num_hidden_layers
+              for i in range(num_layers - freeze_n_layers, num_layers):
+                  for param in teacher_model.base_model.encoder.layer[i].parameters():
+                      param.requires_grad = True
 
             model = TN_PolarPairs(
                 student_model, teacher_model,
