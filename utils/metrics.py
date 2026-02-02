@@ -10,7 +10,7 @@ def subtask2_codabench_compute_metrics_multilabel(p):
   # Sigmoid the predictions to get probabilities
   probs = torch.sigmoid(torch.from_numpy(p.predictions))
   # Convert probabilities to predicted labels (0 or 1)
-  preds = (probs > 0.5).int().numpy()
+  preds = (probs > 0.2).int().numpy()
   # Compute macro F1 score
   return {'f1_macro': f1_score(p.label_ids, preds, average='macro')}
 

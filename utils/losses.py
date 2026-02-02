@@ -74,7 +74,18 @@ def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels,
     
     # Handle multi-label vs single-label
     if polar_labels.dim() > 1 and polar_labels.size(1) > 1:
-        classification_loss = F.binary_cross_entropy_with_logits(logits, polar_labels.float())
+        target = polar_labels.float()
+        
+        # Calculate positive weights: (N_neg / N_pos) for each class
+        # This balances the '0's and '1's within each of the 5 categories
+        num_pos = target.sum(dim=0)
+        num_neg = target.size(0) - num_pos
+        pos_weight = (num_neg / (num_pos + 1e-6)) * 3.0
+        
+        # Clamp weights to prevent extreme gradients
+        pos_weight = torch.clamp(pos_weight, max=10.0).to(logits.device)
+
+        classification_loss = F.binary_cross_entropy_with_logits(logits, target)
         labels_equal = (polar_labels.unsqueeze(1) * polar_labels.unsqueeze(0)).sum(dim=-1) > 0
     else:
         if polar_labels.dim() > 1:
@@ -154,7 +165,7 @@ def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels,
     
     # Weighted by similarity (with clamping)
     cls_similarity_clamped = torch.clamp(cls_similarity, min=eps, max=1e6)
-    weighted_tnc = -torch.log(cls_similarity_clamped + eps) * tensor_norm_loss
+    weighted_tnc = (cls_similarity_clamped + eps) * tensor_norm_loss
     
     # Average per sample (only over samples with positives)
     tnc_per_sample = weighted_tnc.sum(dim=1) / (n_positives + eps)

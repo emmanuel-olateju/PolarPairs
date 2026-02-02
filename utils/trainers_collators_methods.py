@@ -343,7 +343,7 @@ class TN_PolarPairsTrainer(Trainer):
 
         total_loss = (self.alpha * tnc_loss) + (self.beta * ce_loss) + (self.gamma * icnce_loss)
 
-        if self.state.global_step % 10 == 0:
+        if self.state.global_step % 100 == 0:
             self.log({
                 'loss': total_loss.item(),
                 'cross_entropy_loss': ce_loss.item()

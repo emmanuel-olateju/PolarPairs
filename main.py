@@ -79,7 +79,7 @@ def main():
         num_train_epochs = training_params['n_epochs'],
         per_device_train_batch_size = training_params['batch_size'],  # mT5-small can handle 2-4
         per_device_eval_batch_size = training_params['batch_size'],
-        gradient_accumulation_steps = 8,
+        gradient_accumulation_steps = 1,
         eval_strategy = 'epoch',
         save_strategy = 'no',
         logging_steps = 50,
