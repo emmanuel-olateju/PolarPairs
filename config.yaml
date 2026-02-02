@@ -29,7 +29,7 @@ training:
   TNCSE:
     alpha: 0.05
     beta: 1
-    gamma: 0.01
+    gamma: 0.05
     temperature: 0.1
 
 n_labels:
