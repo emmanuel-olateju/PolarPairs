@@ -69,10 +69,14 @@ def polar_pairs_contrastive_loss(
 
 def tnc_contrastive_loss(logits, x1_cls, x2_cls, x1_pool, x2_pool, polar_labels, tau):
     
-    if polar_labels.size(1) > 2:
-        # Multi-label classification loss (BCE with logits)
+    if polar_labels.dim() > 1 and polar_labels.size(1) > 1:
+        # Multi-label classification
         classification_loss = F.binary_cross_entropy_with_logits(logits, polar_labels.float())
     else:
+        # Single-label classification
+        if polar_labels.dim() > 1:
+            polar_labels = polar_labels.squeeze(-1)
+        
         num_classes = logits.size(1)
         class_counts = torch.bincount(polar_labels, minlength=num_classes)
         class_weights = 1.0 / (class_counts.float() + 1e-6)

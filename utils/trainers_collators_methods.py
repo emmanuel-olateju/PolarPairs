@@ -136,8 +136,9 @@ class TN_PolarPairs(nn.Module):
         return x1_hidden, x2_hidden
 
     def forward(self, x_input_ids, x_attention_mask, polar_labels=None):
-        x_input_ids = x_input_ids.squeeze(dim=1)
-        x_attention_mask = x_attention_mask.squeeze(dim=1)
+        if x_input_ids.dim() == 3:
+            x_input_ids = x_input_ids.squeeze(1)
+            x_attention_mask = x_attention_mask.squeeze(1)
         # print(x_input_ids)
         # print(x_input_ids.shape)
         # print(x_attention_mask.shape)

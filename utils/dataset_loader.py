@@ -769,18 +769,17 @@ class CrossLingualDataset(Dataset):
             
             # Prepare item - keep as lists (NO .squeeze(0))
             item = {
-                'x_input_ids': encoding['input_ids'],        # List
-                'x_attention_mask': encoding['attention_mask'],  # List
+                'x_input_ids': encoding['input_ids'].squeeze(0),        # List
+                'x_attention_mask': encoding['attention_mask'].squeeze(0),  # List
             }
             
-            # Add labels based on subtask
             if self.is_multilabel:
-                # Multi-label binary: subtask2, subtask3
-                # Return as LIST, not tensor
                 labels = [int(row[col]) for col in self.label_cols]
+                item['polar_labels'] = torch.tensor(labels, dtype=torch.float)
             else:
-                # Subtask1: can be single-class or multi-class
+                # ... existing logic ...
                 label_value = row[self.label_cols]
+                item['polar_labels'] = torch.tensor(label_value, dtype=torch.long)
                 
                 if isinstance(label_value, str):
                     # Parse string format like "[0, 1]" or "0"
