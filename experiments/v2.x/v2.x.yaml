@@ -1,0 +1,30 @@
+author: Emmanuel Olateju
+baseline: v2.x
+date: 01-02-2026
+description: Testing TNCSE implementation from reposoitory
+messages:
+- First dry run
+name: Cross-Lingual Dry-Run
+parameters:
+  Performance:
+    eng_eval_results:
+      epoch: 10.0
+      eval_f1_macro: 0.24523076625922696
+      eval_loss: 0.23258361220359802
+      eval_runtime: 3.4754
+      eval_samples_per_second: 278.242
+      eval_steps_per_second: 17.552
+  Training:
+    TNCSE:
+      alpha: 0.05
+      beta: 1
+      gamma: 0.01
+      temperature: 0.1
+    anchor_model: sentence-transformers/LaBSE
+    batch_size: 16
+    freeze_anchor_n_layers: 0
+    freeze_slave_n_layers: 0
+    lr: 2.0e-05
+    n_epochs: 10
+    slave_model: setu4993/LEALLA-base
+version: v2.x
