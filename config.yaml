@@ -41,7 +41,8 @@ n_labels:
 
 minority_classes:
   subtask2:
-   - "political"
+   - "gender/sexual"
+   - "other"
 
 augmentations:
   - "aeda"
