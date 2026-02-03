@@ -10,6 +10,7 @@ from utils.metrics import (
     compute_metrics)
 from utils.trainers_collators_methods import (
     TN_PolarPairsCollator, TN_PolarPairs, TN_PolarPairsTrainer)
+from utils.augmentations import aeda_minority_classes
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -17,6 +18,7 @@ import yaml
 import argparse
 
 import numpy as np # type: ignore
+import pandas as pd
 import torch as torch # type: ignore
 from transformers.training_args import TrainingArguments # type: ignore
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, Trainer # type: ignore
@@ -45,6 +47,8 @@ def parse_args():
     parser.add_argument('--language', type=str, default='eng', 
         choices=['eng', 'amh', 'swa', 'hau', 'all']
     )
+
+    parser.add_argument('--data_augment', help='Augment training set using methods in config.yaml', action='store_true')
 
     parser.add_argument('--save_models', help='Save models to huggingFace repository', action='store_true')
 
@@ -202,6 +206,19 @@ def main():
                 target_train_ratio=0.7,
                 mode='train', 
                 verbose=False)
+            
+            if args.data_augment:
+                augmentation_methods = configs['augmentations']
+                augmented_rows = []
+                minority_classes = configs['minority_classes'][args.task]
+                # task_classes = TASKS_LABELS_NAMES[args.task]
+
+                if 'aeda' in augmentation_methods:
+                    aeda_rows = aeda_minority_classes(train, minority_classes)
+                    augmented_rows = augmented_rows + aeda_rows
+                
+                train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
+
             train_dataset = CrossLingualDataset(
               dataframe = train, 
               subtask = args.task,
@@ -213,6 +230,7 @@ def main():
               tokenizer = teacher_tokenizer,
               mode='eval')
             
+
             # Initialize the Trainer & Train the model
             trainer = TN_PolarPairsTrainer(
                 model=model,                         # the instantiated 🤗 Transformers model to be trained

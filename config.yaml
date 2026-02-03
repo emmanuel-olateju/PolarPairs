@@ -1,13 +1,15 @@
 experiment:
   name: "Cross-Lingual Dry-Run"
-  version: "v2.x"
-  dir: "./experiments/v2.x"
+  version: "v2.x.0"
+  dir: "./experiments/v2.x/v2.x.0"
   baseline: "v2.x"
-  description: "Testing TNCSE implementation from reposoitory"
+  description: "Use modified TNCSE approach in cross-lingual mode on English subtask2 with AEDA data augmentation on minority_classes"
   author: Emmanuel Olateju
   date: 01-02-2026
   messages:
-    - First dry run
+    - Second dr Run
+    - v2.x already gave 0.24 F1 macro on English cross-lingual subtask-2 greated than the POLAR papear 0.1969
+    - Now I am seraching augmentation methods that will bring it to above mono-lingual 0.3138, since my cross-lingual uses part of the target language in the train split. 
 
 languages:
   - "swa"
@@ -36,3 +38,10 @@ n_labels:
   subtask1: 2
   subtask2: 5
   subtask3: 7
+
+minority_classes:
+  subtask2:
+   - "political"
+
+augmentations:
+  - "aeda"
