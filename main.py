@@ -10,7 +10,9 @@ from utils.metrics import (
     compute_metrics)
 from utils.trainers_collators_methods import (
     TN_PolarPairsCollator, TN_PolarPairs, TN_PolarPairsTrainer)
-from utils.augmentations import aeda_minority_classes
+from utils.augmentations import (
+    aeda_5_line,
+    augment_minority_classes)
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -214,7 +216,7 @@ def main():
                 # task_classes = TASKS_LABELS_NAMES[args.task]
 
                 if 'aeda' in augmentation_methods:
-                    aeda_rows = aeda_minority_classes(train, minority_classes)
+                    aeda_rows = augment_minority_classes(train, minority_classes, method=aeda_5_line)
                     augmented_rows = augmented_rows + aeda_rows
                 
                 train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
