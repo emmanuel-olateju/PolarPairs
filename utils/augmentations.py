@@ -31,7 +31,7 @@ def aeda_5_line(text, punc_ratio=0.3):
 adjective_aug = naw.SynonymAug(
     aug_src='wordnet',
     aug_p=0.3, # Change 30% of eligible words
-    pos_tag_pattern='(JJ|JJR|JJS)', # Only target Adjectives
+    # pos_tag_pattern='(JJ|JJR|JJS)', # Only target Adjectives
     stopwords=['not', 'no', 'never'] # Protection for sentiment logic
 )
 
@@ -65,7 +65,7 @@ def augment_minority_classes(df, target_cols, methods, n_aug=2):
             selected_method = random.choice(methods)
 
             if selected_method == back_translate:
-                lang = aug_row['lang']
+                lang = aug_row['language']
                 aug_row['text'] = back_translate(row['text'], source_code=lang)
             elif selected_method == wordswap_adjectives:
                 if is_english:
