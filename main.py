@@ -14,7 +14,8 @@ from utils.augmentations import (
     aeda_5_line,
     augment_minority_classes, 
     wordswap_adjectives, 
-    back_translate)
+    back_translate, 
+    batch_backtranslate_minority_classes)
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -219,19 +220,26 @@ def main():
                 minority_classes = configs['minority_classes'][args.task]
                 # task_classes = TASKS_LABELS_NAMES[args.task]
 
+                bt_rows = 0
+                if 'backtranslate' in augmentations:
+                    print("Generating Back-Translation Augmentations")
+                    bt_rows = batch_backtranslate_minority_classes(train, minority_classes, batch_size=64)
+                    print("!!! Back-translatioan augmentations generated for minority classes !!!")
+
                 augmentation_methods = []
                 if 'aeda' in augmentations:
                     augmentation_methods.append(aeda_5_line)
-                    print("Added AEDA Augmentation")
+                    print("Added AEDA Augmentations Technique")
                 if 'wordswap' in augmentations:
                     augmentation_methods.append(wordswap_adjectives)
-                    print("Added Wordswap Augmentation")
-                if 'backtranslate' in augmentations:
-                    augmentation_methods.append(back_translate)
-                    print("Added Back-Translation Augmentation")
+                    print("Added Wordswap Augmentation TEchnique")
+
                 print("Augmenting Minortiy Classes In Train Set")
-                augmented_rows = augment_minority_classes(train, minority_classes, methods=augmentation_methods, n_aug=4)
+                augmented_rows = augment_minority_classes(train, minority_classes, methods=augmentation_methods, n_aug=4)    
+                            
                 train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
+                if 'backtranslate' in augmentations:
+                    train = pd.concat([train, pd.DataFrame(bt_rows)], ignore_index=True)
                 print("!!! Augmentation Done !!!")
 
             train_dataset = CrossLingualDataset(

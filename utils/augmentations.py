@@ -119,3 +119,63 @@ def back_translate(text, source_code):
     except Exception as e:
         print(f"NLLB failed for {source_code}: {e}")
         return text
+    
+def batch_backtranslate_minority_classes(df, target_cols, batch_size=64):
+    """
+    Filters for minority classes and performs batch back-translation.
+    Returns a list of new augmented rows.
+    """
+    # 1. Identify minority samples
+    minority_mask = (df[target_cols] == 1).any(axis=1)
+    minority_df = df[minority_mask].copy()
+    
+    if minority_df.empty:
+        return []
+
+    new_rows = []
+    
+    # 2. Process by language group (NLLB needs specific src_lang per batch)
+    for lang_code, group in minority_df.groupby('language'):
+        texts = group['text'].tolist()
+        src_lang = NLLB_CODES.get(lang_code, 'eng_Latn')
+        tgt_lang = 'eng_Latn' if src_lang != 'eng_Latn' else 'fra_Latn'
+        
+        print(f"--- Batch Translating {len(texts)} samples for language: {lang_code} ---")
+        
+        translated_results = []
+        
+        # 3. GPU Batch Loop
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            
+            # Forward Batch (Source -> English/French)
+            tokenizer.src_lang = src_lang
+            inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True).to(model.device)
+            
+            with torch.no_grad():
+                translated_tokens = model.generate(
+                    **inputs, 
+                    forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_lang),
+                    max_length=128
+                )
+            intermediate_texts = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
+            
+            # Backward Batch (English/French -> Source)
+            tokenizer.src_lang = tgt_lang
+            inputs = tokenizer(intermediate_texts, return_tensors="pt", padding=True, truncation=True).to(model.device)
+            
+            with torch.no_grad():
+                back_tokens = model.generate(
+                    **inputs, 
+                    forced_bos_token_id=tokenizer.convert_tokens_to_ids(src_lang),
+                    max_length=128
+                )
+            translated_results.extend(tokenizer.batch_decode(back_tokens, skip_special_tokens=True))
+        
+        # 4. Create new rows with the augmented text
+        for idx, (original_idx, row) in enumerate(group.iterrows()):
+            aug_row = row.copy()
+            aug_row['text'] = translated_results[idx]
+            new_rows.append(aug_row)
+            
+    return new_rows
