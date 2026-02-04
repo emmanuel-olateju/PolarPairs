@@ -3,7 +3,7 @@ experiment:
   version: "v2.x.0"
   dir: "./experiments/v2.x/v2.x.0"
   baseline: "v2.x"
-  description: "Use modified TNCSE approach in cross-lingual mode on English subtask2 with AEDA data augmentation on minority_classes"
+  description: "Use modified TNCSE approach in cross-lingual mode on English subtask2 with AEDA + wordswap data augmentation on minority_classes"
   author: Emmanuel Olateju
   date: 01-02-2026
   messages:
@@ -46,3 +46,4 @@ minority_classes:
 
 augmentations:
   - "aeda"
+  - "wordswap"

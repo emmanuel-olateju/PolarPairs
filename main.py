@@ -12,7 +12,8 @@ from utils.trainers_collators_methods import (
     TN_PolarPairsCollator, TN_PolarPairs, TN_PolarPairsTrainer)
 from utils.augmentations import (
     aeda_5_line,
-    augment_minority_classes)
+    augment_minority_classes, 
+    wordswap_adjectives)
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -210,16 +211,21 @@ def main():
                 verbose=False)
             
             if args.data_augment:
-                augmentation_methods = configs['augmentations']
-                augmented_rows = []
+                augmentations = configs['augmentations']
                 minority_classes = configs['minority_classes'][args.task]
                 # task_classes = TASKS_LABELS_NAMES[args.task]
 
-                if 'aeda' in augmentation_methods:
-                    aeda_rows = augment_minority_classes(train, minority_classes, method=aeda_5_line)
-                    augmented_rows = augmented_rows + aeda_rows
-                
+                augmentation_methods = []
+                if 'aeda' in augmentations:
+                    augmentation_methods.append(aeda_5_line)
+                    print("Added AEDA Augmentation")
+                if 'wordswap' in augmentations:
+                    augmentation_methods.append(wordswap_adjectives)
+                    print("Added Wordswap Augmentation")
+                augmented_rows = augment_minority_classes(train, minority_classes, methods=augmentation_methods, n_aug=2**len(augmentation_methods))
                 train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
+
+                print("Augmenting Minortiy Classes In Train Set")
 
             train_dataset = CrossLingualDataset(
               dataframe = train, 

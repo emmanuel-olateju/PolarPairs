@@ -1,6 +1,8 @@
 import random
 import pandas as pd
 
+import nlpaug.augmenter.word as naw # type: ignore
+
 def aeda_5_line(text, punc_ratio=0.3):
     puncs = ['.', ',', '!', '?', ';', ':']
     words = text.split()
@@ -9,7 +11,24 @@ def aeda_5_line(text, punc_ratio=0.3):
         words.insert(random.randint(0, len(words)), random.choice(puncs))
     return " ".join(words)
 
-def augment_minority_classes(df, target_cols, method, n_aug=2):
+# Initialize the augmenter once outside the function for efficiency
+# This targets WordNet synonyms for Adjectives
+adjective_aug = naw.SynonymAug(
+    aug_src='wordnet',
+    aug_p=0.3, # Change 30% of eligible words
+    pos_tag_pattern='(JJ|JJR|JJS)', # Only target Adjectives
+    stopwords=['not', 'no', 'never'] # Protection for sentiment logic
+)
+
+def wordswap_adjectives(text):
+    """
+    Wraps nlpaug to be used as a standalone function in your pipeline.
+    """
+    # nlpaug returns a list, so we take the first element
+    augmented_list = adjective_aug.augment(text)
+    return augmented_list[0] if augmented_list else text
+
+def augment_minority_classes(df, target_cols, methods, n_aug=2):
     """
     df: Your training dataframe
     target_cols: List of column names representing minority classes (e.g., ['Dehumanization', 'Vilification'])
@@ -25,8 +44,9 @@ def augment_minority_classes(df, target_cols, method, n_aug=2):
     for _, row in minority_df.iterrows():
         for _ in range(n_aug):
             aug_row = row.copy()
-            # Apply your preferred augmentation (AEDA or nlpaug)
-            aug_row['text'] = method(row['text']) 
+            
+            selected_method = random.choice(methods)
+            aug_row['text'] = selected_method(row['text']) 
             new_rows.append(aug_row)
     
     return new_rows
