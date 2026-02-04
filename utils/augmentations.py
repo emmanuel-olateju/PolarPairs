@@ -5,7 +5,7 @@ import nltk # type: ignore
 # Download the necessary resources for WordNet and POS tagging
 nltk.download('wordnet')
 nltk.download('omw-1.4')
-nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger_eng')
 import nlpaug.augmenter.word as naw # type: ignore
 
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM # type: ignore
