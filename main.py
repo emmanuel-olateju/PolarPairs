@@ -201,7 +201,6 @@ def main():
                 embedding_size=768
             )
 
-
             # Create datasets
             source_langs = configs['languages']
             source_langs.remove(language)
@@ -229,10 +228,11 @@ def main():
                     print("Added Wordswap Augmentation")
                 if 'backtranslate' in augmentations:
                     augmentation_methods.append(back_translate)
-                augmented_rows = augment_minority_classes(train, minority_classes, methods=augmentation_methods, n_aug=2**len(augmentation_methods))
-                train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
-
+                    print("Added Back-Translation Augmentation")
                 print("Augmenting Minortiy Classes In Train Set")
+                augmented_rows = augment_minority_classes(train, minority_classes, methods=augmentation_methods, n_aug=4)
+                train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
+                print("!!! Augmentation Done !!!")
 
             train_dataset = CrossLingualDataset(
               dataframe = train, 
@@ -254,7 +254,7 @@ def main():
                 eval_dataset=val_dataset,            # evaluation dataset
                 compute_metrics=TASKS_METRIC[args.task],     # the callback that computes metrics of interest
                 data_collator=TN_PolarPairsCollator(), # Data collator for dynamic padding
-                callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
+                callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
                 **training_params['TNCSE'])
             trainer.train()
 

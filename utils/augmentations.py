@@ -102,7 +102,7 @@ def back_translate(text, source_code):
         inputs = tokenizer(text, return_tensors="pt").to(model.device)
         translated_tokens = model.generate(
             **inputs, 
-            forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang], 
+            forced_bos_token_id=tokenizer.convert_tokens_to_ids(tgt_lang), 
             max_length=128
         )
         intermediate_text = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
@@ -112,7 +112,7 @@ def back_translate(text, source_code):
         inputs = tokenizer(intermediate_text, return_tensors="pt").to(model.device)
         back_translated_tokens = model.generate(
             **inputs, 
-            forced_bos_token_id=tokenizer.lang_code_to_id[src_lang], 
+            forced_bos_token_id=tokenizer.convert_tokens_to_ids(src_lang), 
             max_length=128
         )
         return tokenizer.batch_decode(back_translated_tokens, skip_special_tokens=True)[0]
