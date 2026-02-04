@@ -8,15 +8,8 @@ nltk.download('omw-1.4')
 nltk.download('averaged_perceptron_tagger')
 import nlpaug.augmenter.word as naw # type: ignore
 
-from transformers import MarianMTModel, MarianTokenizer # type: ignore
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM # type: ignore
 import torch # type: ignore
-# Mapping dictionary
-LANG_MAP = {
-    'eng': 'en',
-    'swa': 'sw',
-    'hau': 'ha',
-    'amh': 'am'
-}
 
 def aeda_5_line(text, punc_ratio=0.3):
     puncs = ['.', ',', '!', '?', ';', ':']
@@ -86,54 +79,43 @@ def augment_minority_classes(df, target_cols, methods, n_aug=2):
 # BACK TRANSLATION
 # ======================
 
-def get_marian_translator(source_lang, target_lang):
-    model_name = f'Helsinki-NLP/opus-mt-{source_lang}-{target_lang}'
-    tokenizer = MarianTokenizer.from_pretrained(model_name)
-    model = MarianMTModel.from_pretrained(model_name).to("cuda" if torch.cuda.is_available() else "cpu")
-    return model, tokenizer
+# Load the "distilled" 600M version - it's fast and fits in Colab easily
+MODEL_NAME = "facebook/nllb-200-distilled-600M"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to("cuda" if torch.cuda.is_available() else "cpu")
 
-def local_translate(text, model, tokenizer):
-    if not text: return text
-    # Tokenize and Generate
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True).to(model.device)
-    with torch.no_grad():
-        translated_tokens = model.generate(**inputs)
-    # Decode
-    return tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
-
-# Cache for loaded models to prevent re-loading every time
-MODEL_CACHE = {}
-
-def get_cached_translator(src, tgt):
-    pair = f"{src}-{tgt}"
-    if pair not in MODEL_CACHE:
-        model_name = f'Helsinki-NLP/opus-mt-{src}-{tgt}'
-        print(f"--- Loading model: {model_name} ---")
-        tokenizer = MarianTokenizer.from_pretrained(model_name)
-        model = MarianMTModel.from_pretrained(model_name).to("cuda" if torch.cuda.is_available() else "cpu")
-        MODEL_CACHE[pair] = (model, tokenizer)
-    return MODEL_CACHE[pair]
+# NLLB uses specific language codes
+NLLB_CODES = {
+    'eng': 'eng_Latn',
+    'swa': 'swh_Latn',
+    'hau': 'hau_Latn',
+    'amh': 'amh_Ethi'
+}
 
 def back_translate(text, source_code):
-    """
-    Translates from source_code -> English -> source_code
-    Example: source_code='swa'
-    """
-    if source_code == 'eng' or source_code not in LANG_MAP:
-        # If English, we use a bridge like French or German
-        src, bridge = 'en', 'fr'
-    else:
-        src = LANG_MAP[source_code]
-        bridge = 'en'
+    src_lang = NLLB_CODES.get(source_code, 'eng_Latn')
+    tgt_lang = 'eng_Latn' if src_lang != 'eng_Latn' else 'fra_Latn' # Bridge to French if original is English
 
     try:
-        # 1. Forward to Bridge
-        f_model, f_tokenizer = get_cached_translator(src, bridge)
-        intermediate_text = local_translate(text, f_model, f_tokenizer)
-        
-        # 2. Back to Source
-        b_model, b_tokenizer = get_cached_translator(bridge, src)
-        return local_translate(intermediate_text, b_model, b_tokenizer)
+        # Forward: Source -> English
+        tokenizer.src_lang = src_lang
+        inputs = tokenizer(text, return_tensors="pt").to(model.device)
+        translated_tokens = model.generate(
+            **inputs, 
+            forced_bos_token_id=tokenizer.lang_code_to_id[tgt_lang], 
+            max_length=128
+        )
+        intermediate_text = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+
+        # Backward: English -> Source
+        tokenizer.src_lang = tgt_lang
+        inputs = tokenizer(intermediate_text, return_tensors="pt").to(model.device)
+        back_translated_tokens = model.generate(
+            **inputs, 
+            forced_bos_token_id=tokenizer.lang_code_to_id[src_lang], 
+            max_length=128
+        )
+        return tokenizer.batch_decode(back_translated_tokens, skip_special_tokens=True)[0]
     except Exception as e:
-        print(f"Back-translation failed for {source_code}: {e}")
+        print(f"NLLB failed for {source_code}: {e}")
         return text
