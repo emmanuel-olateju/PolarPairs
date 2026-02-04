@@ -1,0 +1,35 @@
+author: Emmanuel Olateju
+baseline: v2.x
+date: 01-02-2026
+description: Use modified TNCSE approach in cross-lingual mode on English subtask2
+  with AEDA + wordswap data augmentation on minority_classes
+messages:
+- Second dr Run
+- v2.x already gave 0.24 F1 macro on English cross-lingual subtask-2 greated than
+  the POLAR papear 0.1969
+- Now I am seraching augmentation methods that will bring it to above mono-lingual
+  0.3138, since my cross-lingual uses part of the target language in the train split.
+name: Cross-Lingual Dry-Run
+parameters:
+  Performance:
+    eng_eval_results:
+      epoch: 10.0
+      eval_f1_macro: 0.3548924100318714
+      eval_loss: 0.2525205910205841
+      eval_runtime: 3.3592
+      eval_samples_per_second: 287.867
+      eval_steps_per_second: 18.159
+  Training:
+    TNCSE:
+      alpha: 0.05
+      beta: 1
+      gamma: 0.01
+      temperature: 0.1
+    anchor_model: sentence-transformers/LaBSE
+    batch_size: 16
+    freeze_anchor_n_layers: 0
+    freeze_slave_n_layers: 0
+    lr: 2.0e-05
+    n_epochs: 10
+    slave_model: setu4993/LEALLA-base
+version: v2.x.0

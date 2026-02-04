@@ -49,11 +49,17 @@ def augment_minority_classes(df, target_cols, methods, n_aug=2):
     
     # 2. Iterate only over the identified minority rows
     for _, row in minority_df.iterrows():
+        is_english = row.get('lang', 'eng') == 'eng'
+
         for _ in range(n_aug):
             aug_row = row.copy()
-            
-            selected_method = random.choice(methods)
-            aug_row['text'] = selected_method(row['text']) 
+
+            if is_english:
+                selected_method = random.choice(methods)
+                aug_row['text'] = selected_method(row['text']) 
+            else:
+                aug_row['text'] = aeda_5_line(row['text'])
+                
             new_rows.append(aug_row)
     
     return new_rows
