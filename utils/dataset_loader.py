@@ -25,7 +25,7 @@ TASKS_LABELS_NAMES = {
 }
 
 class PolarizationDataset(Dataset):
-    def __init__(self, texts, labels,tokenizer, max_length =128, n_classes=2):
+    def __init__(self, texts, labels, tokenizer, max_length =128, n_classes=2):
         self.texts=texts
         self.labels=labels
         self.tokenizer= tokenizer

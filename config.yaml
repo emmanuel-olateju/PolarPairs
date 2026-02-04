@@ -1,15 +1,13 @@
 experiment:
-  name: "Cross-Lingual Dry-Run"
-  version: "v2.x.1"
-  dir: "./experiments/v2.x/v2.x.1"
+  name: "File-submission"
+  version: "v2.x.x"
+  dir: "./experiments/v2.x/v2.x.x"
   baseline: "v2.x.0"
-  description: "Use modified TNCSE approach in cross-lingual mode on English subtask2 with AEDA + wordswap + back-translate data augmentation on minority_classes"
+  description: "Test submission file generation"
   author: Emmanuel Olateju
   date: 01-02-2026
   messages:
-    - Third dry run
-    - v2.x.0 already gave 0.35 F1 macro on English cross-lingual subtask-2 greated than the POLAR papear 0.1969
-    - Now I am adding back-translation augmentation if it ill bring it to above mono-lingual 0.35 of v2.x.0; since my cross-lingual uses part of the target language in the train split I need the best eval_f1_macto possible without any overfitting risk.
+    - Test with subtask-2 alone
 
 languages:
   - "swa"

@@ -16,6 +16,9 @@ from utils.augmentations import (
     wordswap_adjectives, 
     back_translate, 
     batch_backtranslate_minority_classes)
+from utils.evaluations import (
+    subtask2_codabench_evaluation
+)
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -29,6 +32,18 @@ from transformers.training_args import TrainingArguments # type: ignore
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, Trainer # type: ignore
 from transformers import DataCollatorWithPadding # type: ignore
 from transformers import EarlyStoppingCallback # type: ignore
+
+import os
+from dotenv import load_dotenv # type: ignore
+load_dotenv()
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+from huggingface_hub import login # type: ignore
+if HF_TOKEN:
+    login(token=HF_TOKEN) 
+else:
+    print("Error: HF_TOKEN not found in .env file")
+    exit()
 
 TASKS_METRIC = {
     'subtask1': subtask1_codabench_compute_metrics,
@@ -272,12 +287,19 @@ def main():
 
             # Save modelto hugging-face and  experiment details to experiment-tracker
             if args.save_models:
-                trainer.save_model(f'{args.task}.{experiment.version}.model')
-            #     model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
-            #     tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
+                trainer.save_model(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
+                model.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
+                tokenizer.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model') # type: ignore
 
             eval_results_param = Parameter(eval_results, f"{language}_eval_results", "Performance")
             experiment.add_params([eval_results_param])
+
+            if args.task == 'subtask2':
+                subtask2_codabench_evaluation(
+                    model, teacher_tokenizer, language, 
+                    training_args, experiment.dir, 
+                    args.mode, eval_mode='test'
+                )
         
     experiment.save()
 
