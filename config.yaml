@@ -1,15 +1,15 @@
 experiment:
   name: "Cross-Lingual Dry-Run"
-  version: "v2.x.0"
-  dir: "./experiments/v2.x/v2.x.0"
-  baseline: "v2.x"
-  description: "Use modified TNCSE approach in cross-lingual mode on English subtask2 with AEDA + wordswap data augmentation on minority_classes"
+  version: "v2.x.1"
+  dir: "./experiments/v2.x/v2.x.1"
+  baseline: "v2.x.0"
+  description: "Use modified TNCSE approach in cross-lingual mode on English subtask2 with AEDA + wordswap + back-translate data augmentation on minority_classes"
   author: Emmanuel Olateju
   date: 01-02-2026
   messages:
-    - Second dr Run
-    - v2.x already gave 0.24 F1 macro on English cross-lingual subtask-2 greated than the POLAR papear 0.1969
-    - Now I am seraching augmentation methods that will bring it to above mono-lingual 0.3138, since my cross-lingual uses part of the target language in the train split. 
+    - Third dry run
+    - v2.x.0 already gave 0.35 F1 macro on English cross-lingual subtask-2 greated than the POLAR papear 0.1969
+    - Now I am adding back-translation augmentation if it ill bring it to above mono-lingual 0.35 of v2.x.0; since my cross-lingual uses part of the target language in the train split I need the best eval_f1_macto possible without any overfitting risk.
 
 languages:
   - "swa"
@@ -37,7 +37,7 @@ training:
 n_labels:
   subtask1: 2
   subtask2: 5
-  subtask3: 7
+  subtask3: 6
 
 minority_classes:
   subtask2:
@@ -47,3 +47,4 @@ minority_classes:
 augmentations:
   - "aeda"
   - "wordswap"
+  - "backtranslate"

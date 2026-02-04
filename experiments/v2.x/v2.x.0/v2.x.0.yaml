@@ -1,12 +1,12 @@
 author: Emmanuel Olateju
 baseline: v2.x
-date: 01-02-2026
+date: 03-02-2026
 description: Use modified TNCSE approach in cross-lingual mode on English subtask2
   with AEDA + wordswap data augmentation on minority_classes
 messages:
 - Second dr Run
-- v2.x already gave 0.24 F1 macro on English cross-lingual subtask-2 greated than
-  the POLAR papear 0.1969
+- v2.x already gave 0.24 F1 macro on English cross-lingual subtask-2 greater than
+  the POLAR paper 0.1969
 - Now I am seraching augmentation methods that will bring it to above mono-lingual
   0.3138, since my cross-lingual uses part of the target language in the train split.
 name: Cross-Lingual Dry-Run

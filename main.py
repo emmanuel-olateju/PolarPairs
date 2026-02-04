@@ -13,7 +13,8 @@ from utils.trainers_collators_methods import (
 from utils.augmentations import (
     aeda_5_line,
     augment_minority_classes, 
-    wordswap_adjectives)
+    wordswap_adjectives, 
+    back_translate)
 
 from utils.experiment_tracker import Experiment, Parameter
 
@@ -26,6 +27,7 @@ import torch as torch # type: ignore
 from transformers.training_args import TrainingArguments # type: ignore
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, Trainer # type: ignore
 from transformers import DataCollatorWithPadding # type: ignore
+from transformers import EarlyStoppingCallback # type: ignore
 
 TASKS_METRIC = {
     'subtask1': subtask1_codabench_compute_metrics,
@@ -88,7 +90,11 @@ def main():
         per_device_eval_batch_size = training_params['batch_size'],
         gradient_accumulation_steps = 1,
         eval_strategy = 'epoch',
-        save_strategy = 'no',
+        save_strategy = 'epoch',
+        load_best_model_at_end = True,
+        metric_for_best_model = 'eval_loss',
+        greater_is_better = False,
+        save_total_limit = 1,
         logging_steps = 50,
         learning_rate = training_params['lr'],
         max_grad_norm = 1.0,
@@ -97,7 +103,6 @@ def main():
         fp16 = True,
         # weight_decay = 0.1,
         dataloader_num_workers = 0,
-        load_best_model_at_end = False,
         gradient_checkpointing = False,
         eval_accumulation_steps = 1,
         # metric_for_best_model="eval_loss",
@@ -222,6 +227,8 @@ def main():
                 if 'wordswap' in augmentations:
                     augmentation_methods.append(wordswap_adjectives)
                     print("Added Wordswap Augmentation")
+                if 'backtranslate' in augmentations:
+                    augmentation_methods.append(back_translate)
                 augmented_rows = augment_minority_classes(train, minority_classes, methods=augmentation_methods, n_aug=2**len(augmentation_methods))
                 train = pd.concat([train, pd.DataFrame(augmented_rows)], ignore_index=True)
 
@@ -247,7 +254,7 @@ def main():
                 eval_dataset=val_dataset,            # evaluation dataset
                 compute_metrics=TASKS_METRIC[args.task],     # the callback that computes metrics of interest
                 data_collator=TN_PolarPairsCollator(), # Data collator for dynamic padding
-                # callbacks=[EarlyStoppingCallback(early_stopping_patience=1)]
+                callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
                 **training_params['TNCSE'])
             trainer.train()
 
@@ -256,7 +263,8 @@ def main():
             print(f"Macro F1 score on validation set for Subtask 2: {eval_results['eval_f1_macro']}")
 
             # Save modelto hugging-face and  experiment details to experiment-tracker
-            # if args.save_models:
+            if args.save_models:
+                trainer.save_model(f'{args.task}.{experiment.version}.model')
             #     model.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
             #     tokenizer.push_to_hub(f"olateju/PolarPairs-{model_name}_{language}")
 
