@@ -1,6 +1,13 @@
 import random
 import pandas as pd
 
+import nltk # type: ignore
+
+# Download the necessary resources for WordNet and POS tagging
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+nltk.download('averaged_perceptron_tagger')
+
 import nlpaug.augmenter.word as naw # type: ignore
 
 def aeda_5_line(text, punc_ratio=0.3):
