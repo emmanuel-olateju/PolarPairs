@@ -1,5 +1,6 @@
 import random
 import pandas as pd
+from tqdm import tqdm
 
 import nltk # type: ignore
 # Download the necessary resources for WordNet and POS tagging
@@ -79,10 +80,19 @@ def augment_minority_classes(df, target_cols, methods, n_aug=2):
 # BACK TRANSLATION
 # ======================
 
-# Load the "distilled" 600M version - it's fast and fits in Colab easily
-MODEL_NAME = "facebook/nllb-200-distilled-600M"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to("cuda" if torch.cuda.is_available() else "cpu")
+def get_nllb_model():
+    model_name = "facebook/nllb-200-distilled-600M"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to("cuda" if torch.cuda.is_available() else "cpu")
+    return model, tokenizer
+
+def cleanup_nllb(model, tokenizer):
+    import gc
+    del model
+    del tokenizer
+    gc.collect()
+    torch.cuda.empty_cache()
+    print("--- GPU Memory Cleared of NLLB Models ---")
 
 # NLLB uses specific language codes
 NLLB_CODES = {
@@ -93,6 +103,8 @@ NLLB_CODES = {
 }
 
 def back_translate(text, source_code):
+    model, tokenizer = get_nllb_model()
+
     src_lang = NLLB_CODES.get(source_code, 'eng_Latn')
     tgt_lang = 'eng_Latn' if src_lang != 'eng_Latn' else 'fra_Latn' # Bridge to French if original is English
 
@@ -115,9 +127,12 @@ def back_translate(text, source_code):
             forced_bos_token_id=tokenizer.convert_tokens_to_ids(src_lang), 
             max_length=128
         )
+
+        cleanup_nllb(model, tokenizer)
         return tokenizer.batch_decode(back_translated_tokens, skip_special_tokens=True)[0]
     except Exception as e:
         print(f"NLLB failed for {source_code}: {e}")
+        cleanup_nllb(model, tokenizer)
         return text
     
 def batch_backtranslate_minority_classes(df, target_cols, batch_size=64):
@@ -125,6 +140,8 @@ def batch_backtranslate_minority_classes(df, target_cols, batch_size=64):
     Filters for minority classes and performs batch back-translation.
     Returns a list of new augmented rows.
     """
+    model, tokenizer = get_nllb_model()
+
     # 1. Identify minority samples
     minority_mask = (df[target_cols] == 1).any(axis=1)
     minority_df = df[minority_mask].copy()
@@ -145,7 +162,7 @@ def batch_backtranslate_minority_classes(df, target_cols, batch_size=64):
         translated_results = []
         
         # 3. GPU Batch Loop
-        for i in range(0, len(texts), batch_size):
+        for i in tqdm(range(0, len(texts), batch_size), total=len(texts)//batch_size):
             batch = texts[i:i + batch_size]
             
             # Forward Batch (Source -> English/French)
@@ -177,5 +194,6 @@ def batch_backtranslate_minority_classes(df, target_cols, batch_size=64):
             aug_row = row.copy()
             aug_row['text'] = translated_results[idx]
             new_rows.append(aug_row)
-            
+
+    cleanup_nllb(model, tokenizer)     
     return new_rows
