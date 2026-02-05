@@ -1,13 +1,13 @@
 experiment:
   name: "File-submission"
-  version: "v2.x.x"
-  dir: "./experiments/v2.x/v2.x.x"
+  version: "v2.0"
+  dir: "./experiments/v2.0"
   baseline: "v2.x.0"
-  description: "Test submission file generation"
+  description: "Train and generate submission files"
   author: Emmanuel Olateju
-  date: 01-02-2026
+  date: 05-02-2026
   messages:
-    - Test with subtask-2 alone
+    - Use best parameters and hyperparameters from batch 2.x experiments
 
 languages:
   - "swa"
