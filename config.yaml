@@ -41,6 +41,10 @@ minority_classes:
   subtask2:
    - "gender/sexual"
    - "other"
+  subtask3:
+   - 'invalidation' 
+   - 'lack_of_empathy' 
+   - 'dehumanization'
 
 augmentations:
   - "aeda"

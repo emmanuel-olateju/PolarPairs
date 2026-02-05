@@ -232,7 +232,7 @@ def main():
                 mode='train', 
                 verbose=False)
             
-            if args.data_augment:
+            if (args.data_augment) and (args.task != 'subtask1'):
                 augmentations = configs['augmentations']
                 minority_classes = configs['minority_classes'][args.task]
                 # task_classes = TASKS_LABELS_NAMES[args.task]
