@@ -27,6 +27,7 @@ from utils.experiment_tracker import Experiment, Parameter
 import yaml
 import argparse
 
+import copy
 import numpy as np # type: ignore
 import pandas as pd
 import torch as torch # type: ignore
@@ -105,14 +106,14 @@ def main():
         output_dir = './results',
         num_train_epochs = training_params['n_epochs'],
         per_device_train_batch_size = training_params['batch_size'],  # mT5-small can handle 2-4
-        per_device_eval_batch_size = training_params['batch_size'],
+        per_device_eval_batch_size = training_params['batch_size'] * 2,
         gradient_accumulation_steps = 1,
         eval_strategy = 'epoch',
         save_strategy = 'epoch',
         load_best_model_at_end = True,
         metric_for_best_model = 'eval_loss',
         greater_is_better = False,
-        save_total_limit = 1,
+        save_total_limit = 7,
         logging_steps = 50,
         learning_rate = training_params['lr'],
         max_grad_norm = 1.0,
@@ -120,9 +121,9 @@ def main():
         # warmup_ratio = 0.1,
         fp16 = True,
         # weight_decay = 0.1,
-        dataloader_num_workers = 0,
+        dataloader_num_workers = 2,
         gradient_checkpointing = False,
-        eval_accumulation_steps = 1,
+        eval_accumulation_steps = 50,
         # metric_for_best_model="eval_loss",
         disable_tqdm=False
     )
@@ -220,7 +221,7 @@ def main():
             )
 
             # Create datasets
-            source_langs = configs['languages']
+            source_langs = copy.deepcopy(configs['languages'])
             source_langs.remove(language)
             print("Source Languages: ", source_langs)
             print("Languages: ", languages)
