@@ -282,6 +282,7 @@ def main():
             trainer.train()
 
             # Evaluate the model on the validation set
+            print("Training done, evaluating on validation set")
             eval_results = trainer.evaluate()
             print(f"Macro F1 score on validation set for Subtask 2: {eval_results['eval_f1_macro']}")
 
@@ -297,7 +298,7 @@ def main():
             experiment.add_params([eval_results_param])
 
             if args.task == 'subtask2':
-                print("Generatign submission for subtask2")
+                print("Generating submission for subtask2")
                 subtask2_codabench_evaluation(
                     model, teacher_tokenizer, language, 
                     training_args, experiment.dir, 
