@@ -17,7 +17,9 @@ from utils.augmentations import (
     back_translate, 
     batch_backtranslate_minority_classes)
 from utils.evaluations import (
-    subtask2_codabench_evaluation
+    subtask1_codabench_evaluation,
+    subtask2_codabench_evaluation,
+    subtask3_codabench_evaluation
 )
 
 from utils.experiment_tracker import Experiment, Parameter
@@ -48,7 +50,7 @@ else:
 TASKS_METRIC = {
     'subtask1': subtask1_codabench_compute_metrics,
     'subtask2': subtask2_codabench_compute_metrics_multilabel,
-    'subtask3': compute_metrics
+    'subtask3': subtask2_codabench_compute_metrics_multilabel
 }
 TASKS_LABELS_NAMES = {
     'subtask1': 'polarization',
@@ -297,9 +299,23 @@ def main():
             eval_results_param = Parameter(eval_results, f"{language}_eval_results", "Performance")
             experiment.add_params([eval_results_param])
 
-            if args.task == 'subtask2':
+            if args.task == 'subtask1':
+                print("Generating submission for subtask1")
+                subtask1_codabench_evaluation(
+                    model, teacher_tokenizer, language, 
+                    training_args, experiment.dir, 
+                    args.mode, eval_mode='test'
+                )
+            elif args.task == 'subtask2':
                 print("Generating submission for subtask2")
                 subtask2_codabench_evaluation(
+                    model, teacher_tokenizer, language, 
+                    training_args, experiment.dir, 
+                    args.mode, eval_mode='test'
+                )
+            elif args.task == 'subtask3':
+                print("Generating submission for subtask3")
+                subtask3_codabench_evaluation(
                     model, teacher_tokenizer, language, 
                     training_args, experiment.dir, 
                     args.mode, eval_mode='test'
