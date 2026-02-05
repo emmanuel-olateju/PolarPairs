@@ -3,11 +3,11 @@ import os
 import numpy as np # type: ignore
 import pandas as pd
 
-from dataset_loader import CrossLingualDataset
-from trainers_collators_methods import (
+from .dataset_loader import CrossLingualDataset
+from .trainers_collators_methods import (
     TN_PolarPairsTrainer,
     TN_PolarPairsCollator)
-from metrics import subtask2_codabench_compute_metrics_multilabel
+from .metrics import subtask2_codabench_compute_metrics_multilabel
 
 from transformers import ( # type: ignore
     Trainer, 
@@ -16,7 +16,7 @@ from transformers import ( # type: ignore
 ) # type: ignore
 
 import torch # type: ignore
-from torch.utils import DataLoader # type: ignore
+from torch.utils.data import DataLoader # type: ignore
 
 
 TASKS_LABELS_NAMES = {

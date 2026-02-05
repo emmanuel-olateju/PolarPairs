@@ -24,7 +24,7 @@ models:
 training:
   lr: !!float 2e-5
   batch_size: 16  
-  n_epochs: 10
+  n_epochs: 1
   
   TNCSE:
     alpha: 0.05

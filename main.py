@@ -287,14 +287,17 @@ def main():
 
             # Save modelto hugging-face and  experiment details to experiment-tracker
             if args.save_models:
+                print("Saving Models")
                 trainer.save_model(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
-                model.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
-                tokenizer.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model') # type: ignore
+                # model.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
+                # tokenizer.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model') # type: ignore
+                print("Models Saved")
 
             eval_results_param = Parameter(eval_results, f"{language}_eval_results", "Performance")
             experiment.add_params([eval_results_param])
 
             if args.task == 'subtask2':
+                print("Generatign submission for subtask2")
                 subtask2_codabench_evaluation(
                     model, teacher_tokenizer, language, 
                     training_args, experiment.dir, 
