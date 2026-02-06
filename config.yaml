@@ -1,13 +1,14 @@
 experiment:
-  name: "File-submission"
-  version: "v2.0"
-  dir: "./experiments/v2.0"
+  name: "File-submission v2"
+  version: "v2.1"
+  dir: "./experiments/v2.1"
   baseline: "v2.x.0"
   description: "Train and generate submission files"
   author: Emmanuel Olateju
   date: 05-02-2026
   messages:
     - Use best parameters and hyperparameters from batch 2.x experiments
+    - Swichin bacg to batch size of 16 fo subtask3
 
 languages:
   - "swa"
@@ -23,7 +24,7 @@ models:
 
 training:
   lr: !!float 2e-5
-  batch_size: 64  
+  batch_size: 16  
   n_epochs: 10
   
   TNCSE:

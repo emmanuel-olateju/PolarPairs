@@ -29,7 +29,7 @@ import argparse
 
 import copy
 import numpy as np # type: ignore
-import pandas as pd
+import pandas as pd # type: ignore
 import torch as torch # type: ignore
 from transformers.training_args import TrainingArguments # type: ignore
 from transformers import AutoTokenizer, AutoModel, AutoModelForSequenceClassification, Trainer # type: ignore
@@ -292,7 +292,7 @@ def main():
             # Save modelto hugging-face and  experiment details to experiment-tracker
             if args.save_models:
                 print("Saving Models")
-                trainer.save_model(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
+                # trainer.save_model(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
                 # model.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model')
                 # tokenizer.push_to_hub(f'olateju/PolarPairs-{args.task}.{experiment.version}.{language}.model') # type: ignore
                 print("Models Saved")
