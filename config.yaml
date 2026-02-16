@@ -1,14 +1,15 @@
 experiment:
-  name: "File-submission v2"
-  version: "v2.1"
-  dir: "./experiments/v2.1"
-  baseline: "v2.x.0"
-  description: "Train and generate submission files"
+  name: "subtask2 cross-lingual training"
+  version: "v2.0"
+  dir: "./experiments/v2.0"
+  baseline: "v2.0"
+  description: "Baseline performance of cross-lingual training on subtask2"
   author: Emmanuel Olateju
   date: 05-02-2026
   messages:
-    - Use best parameters and hyperparameters from batch 2.x experiments
-    - Swichin bacg to batch size of 16 fo subtask3
+    - using LEALLA-base
+    - no early-stopping and model-checkpointing
+    - no data augmentations
 
 languages:
   - "swa"
